@@ -216,7 +216,7 @@
     // Post-import: replace https://default98d027077ed646d2acf222ebdd2d5c.17.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/15/workflows/376521a97f7a46f6a3dd23a663b869ef/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=l4BxP4L8j2BFA-AmWL8MQFpKeN2PU8IGG7Y67prOJFQ with the HTTP POST URL of "National - Manage Events And Services".
     const MANAGE_URL = "https://default98d027077ed646d2acf222ebdd2d5c.17.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/15/workflows/376521a97f7a46f6a3dd23a663b869ef/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=l4BxP4L8j2BFA-AmWL8MQFpKeN2PU8IGG7Y67prOJFQ";
     const _q = new URLSearchParams(location.search);
-    const EVENT_CTX = { id: _q.get('eventid')||'', site: _q.get('site')||'', list: _q.get('list')||'' };
+    const EVENT_CTX = { id: _q.get('eventid')||'', region: _q.get('r')||'' };
     // Post-import: paste the GET (invoke) URL of the 'National - Event Dashboard' flow here.
     const DASHBOARD_URL = "https://default98d027077ed646d2acf222ebdd2d5c.17.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/26/workflows/4dc26a4bca92432bb847c47860e3667f/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=qlK5yTiztt4951SYCmr6KoomyqGe1HX5y1XWguGpyIA";
     const LOGO_LIGHT = "https://balmoralaid-my.sharepoint.com/:i:/g/personal/bc_calendar_iicanada_net/IQDia9074O6nRoBnyx6CfOYUAVC5g3j_1K2iBRxSH-1A-qU?e=Ybmhls&download=1";
@@ -307,7 +307,7 @@
 
         fetch(MANAGE_URL, {
             method: 'POST',
-            body: JSON.stringify({ eventId: EVENT_CTX.id, site: EVENT_CTX.site, list: EVENT_CTX.list, service: serviceType, action: actionType })
+            body: JSON.stringify({ eventId: EVENT_CTX.id, region: EVENT_CTX.region, service: serviceType, action: actionType })
         })
         .then(response => response.text())
         .then(data => {
@@ -493,7 +493,7 @@
         }
         try {
             const sep = DASHBOARD_URL.indexOf('?') > -1 ? '&' : '?';
-            const url = DASHBOARD_URL + sep + 'eventid=' + encodeURIComponent(EVENT_CTX.id) + '&site=' + encodeURIComponent(EVENT_CTX.site) + '&list=' + encodeURIComponent(EVENT_CTX.list);
+            const url = DASHBOARD_URL + sep + 'eventid=' + encodeURIComponent(EVENT_CTX.id) + '&region=' + encodeURIComponent(EVENT_CTX.region);
             const r = await fetch(url);
             if (!r.ok) throw new Error('HTTP ' + r.status);
             const data = await r.json();
