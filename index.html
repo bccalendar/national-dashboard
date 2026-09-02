@@ -246,13 +246,23 @@
         return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     }
 
+    function splitDelimited(s) {
+        // Handles delimiter-based multi-values like "- Brantford - Brampton" and single values
+        s = decodeAndTrim(s).replace(/^[-–—]\s*/, '');
+        var parts = s.split(/\s+[-–—]\s+/).map(function(x){ return x.trim(); }).filter(Boolean);
+        return parts.length ? parts : (s ? [s] : []);
+    }
     function parseMultiSelect(data) {
         if (!data || data === '[]') return [];
         try {
             const parsed = typeof data === 'string' ? JSON.parse(data) : data;
-            if (Array.isArray(parsed)) return parsed.map(item => decodeAndTrim(item.Value || item));
-            return [decodeAndTrim(parsed.Value || parsed)];
-        } catch(e) { return [decodeAndTrim(data)]; }
+            if (Array.isArray(parsed)) {
+                var out = [];
+                parsed.forEach(function(item){ out = out.concat(splitDelimited(item.Value || item)); });
+                return out;
+            }
+            return splitDelimited(parsed.Value || parsed);
+        } catch(e) { return splitDelimited(data); }
     }
 
     function closeModal() { document.getElementById('confirmModal').style.display = 'none'; }
