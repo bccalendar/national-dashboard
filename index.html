@@ -208,6 +208,12 @@
                         <div id="leadsDetails"></div>
                     </div>
                 </div>
+                <div class="card">
+                    <h2 class="section-title" onclick="toggleCard(this)"><span>🕑</span> Change History</h2>
+                    <div class="card-content" style="transition: max-height 0.4s ease-out; overflow: hidden;">
+                        <div id="changeHistoryList"></div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -225,6 +231,8 @@
     let eventData = {};
 
     let serviceStatuses = {};
+
+    let changeLog = [];
 
     const ICONS = { 
         LOCK: '<span style="color:inherit">🔒</span>', 
@@ -357,6 +365,48 @@
                (decodeAndTrim(email) ? `<a href="mailto:${decodeAndTrim(email)}" class="contact-link">${ICONS.MAIL} ${decodeAndTrim(email)}</a>` : '') +
                (decodeAndTrim(phone) ? `<a href="tel:${decodeAndTrim(phone)}" class="contact-link">${ICONS.PHONE} ${decodeAndTrim(phone)}</a>` : '') +
                `</div>`;
+    }
+
+    function escHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+
+    function formatDateTime(d){
+        if(!d) return '';
+        var dt = new Date(d);
+        if(isNaN(dt)) return String(d);
+        return dt.toLocaleString('en-US', { month:'short', day:'numeric', year:'numeric', hour:'numeric', minute:'2-digit' });
+    }
+
+    function renderChangeLog(){
+        const el = document.getElementById('changeHistoryList');
+        if(!el) return;
+        const logs = Array.isArray(changeLog) ? changeLog.slice() : [];
+        if(!logs.length){ el.innerHTML = '<p style="color:var(--text-muted); font-size:13px; margin:4px 0;">No changes recorded yet.</p>'; return; }
+        logs.sort(function(a,b){ return new Date(b.Timestamp) - new Date(a.Timestamp); });
+        const groups = [];
+        logs.forEach(function(l){
+            const key = (l.Timestamp||'') + '|' + (l.ChangedBy||'');
+            let g = groups.find(function(x){ return x.key===key; });
+            if(!g){ g = { key:key, ts:l.Timestamp, by:l.ChangedBy, items:[] }; groups.push(g); }
+            g.items.push(l);
+        });
+        el.innerHTML = groups.map(function(g){
+            const when = formatDateTime(g.ts);
+            const who = escHtml(String(g.by||'').trim() || 'Unknown');
+            const rows = g.items.map(function(it){
+                const f = escHtml(String(it.Field||'').trim());
+                const ov = String(it.OldValue||'').trim();
+                const nv = String(it.NewValue||'').trim();
+                return '<div style="font-size:13px; margin:4px 0; display:flex; gap:6px; flex-wrap:wrap; align-items:baseline;">' +
+                       '<span style="font-weight:700; min-width:130px;">' + f + '</span>' +
+                       '<span style="color:var(--danger,#c0392b); text-decoration:line-through; opacity:.85;">' + (ov ? escHtml(ov) : '<em>empty</em>') + '</span>' +
+                       '<span style="opacity:.6;">→</span>' +
+                       '<span style="color:var(--status-success,#2e7d32); font-weight:600;">' + (nv ? escHtml(nv) : '<em>empty</em>') + '</span>' +
+                       '</div>';
+            }).join('');
+            return '<div style="margin-bottom:14px; padding-bottom:10px; border-bottom:1px solid var(--border-color);">' +
+                   '<div style="display:flex; justify-content:space-between; gap:8px; font-size:12px; margin-bottom:6px; color:var(--text-muted); flex-wrap:wrap;">' +
+                   '<strong style="color:var(--text-main);">' + who + '</strong><span>' + when + '</span></div>' + rows + '</div>';
+        }).join('');
     }
 
     function render() {
@@ -495,6 +545,8 @@
         document.getElementById('requesterDetails').innerHTML = `<strong style="font-size:12px; color:var(--text-muted); text-transform:uppercase; margin-bottom:8px; display:flex; align-items:center; gap:5px; letter-spacing:0.5px;"><span>👤</span> Requester</strong>` + createContactBlock(eventData['Requester Name'], eventData['Requester Email'], eventData['Requester Phone']);
         document.getElementById('leadsDetails').innerHTML = createDetailRow('Leads Info', decodeAndTrim(eventData['Event Leads Summary']), null, '📢', true) + `<div style="margin-top:15px;"><strong style="font-size:12px; color:var(--text-muted); text-transform:uppercase; margin-bottom:8px; display:flex; align-items:center; gap:5px; letter-spacing:0.5px;"><span>⭐</span> Project Lead</strong>` + createContactBlock(eventData['Project Lead Name'], eventData['Project Lead Email'], eventData['Project Lead Phone']) + `<strong style="font-size:12px; color:var(--text-muted); text-transform:uppercase; margin-top:15px; margin-bottom:8px; display:flex; align-items:center; gap:5px; letter-spacing:0.5px;"><span>🏃</span> Day Lead</strong>` + createContactBlock(eventData['Day Lead Name'], eventData['Day Lead Email'], eventData['Day Lead Phone']) + `</div>`;
 
+        renderChangeLog();
+
         setTimeout(() => document.body.style.opacity = '1', 100);
     }
 
@@ -511,6 +563,7 @@
             const data = await r.json();
             eventData = data.eventData || {};
             serviceStatuses = data.serviceStatuses || {};
+            changeLog = data.changeLog || [];
             render();
         } catch (e) {
             document.body.innerHTML = '<div style="padding:24px;font-family:sans-serif"><h3>Could not load this event</h3><p style="color:#666">' + e + '</p><p style="color:#999">Check the link parameters (eventid, site, list) and that the dashboard flow is on.</p></div>';
