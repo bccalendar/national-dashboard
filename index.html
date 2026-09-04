@@ -483,6 +483,7 @@
             createDetailRow('Event ID', eventData['Event ID'], null, '🆔', true) +
             createDetailRow('Event Type', decodeAndTrim(eventData['Event Type']), null, '🏷️', true) +
             createDetailRow('Schedule', `${formatDate(eventData['Event Start Date'])} | ${decodeAndTrim(eventData['Start Time'])} - ${decodeAndTrim(eventData['End Time'])}`, null, ICONS.CAL, true) +
+            createDetailRow('Recurring', (function(){ var r=decodeAndTrim(eventData['Recurring Event']); if(!r||r==='None') return 'None'; var o=decodeAndTrim(eventData['Repeat Occurrences']); return r + (o ? ' ('+o+' occurrences)' : ''); })(), null, '🔁', true) +
             createDetailRow('Virtually', decodeAndTrim(eventData['Virtually']), null, ICONS.VIRTUAL, true) +
             createDetailRow('Location', parseMultiSelect(eventData['Location']), 'rooms', ICONS.PIN, true) +
             createDetailRow('Venue Info', fullVenue, null, '🏛️', true) +
@@ -502,6 +503,8 @@
             createDetailRow('Audience', parseMultiSelect(eventData['Audience']), 'audience', '👥', true) + 
             createDetailRow('Target Segments', parseMultiSelect(eventData['Target Segments']), 'segments', '🎯', true) +
             createDetailRow('Expected Attendees', decodeAndTrim(eventData['Expected Attendees']), null, '📈', true) +
+            createDetailRow('Refreshments', (function(){ var s=decodeAndTrim(eventData['Serving Refreshments']); if(s!=='Yes') return s||'No'; var d=decodeAndTrim(eventData['Refreshment Details']); return 'Yes'+(d? ' — '+d : ''); })(), null, '🍽️', true) +
+            createDetailRow('Tickets', (function(){ var t=decodeAndTrim(eventData['Ticketed Event']); if(!t||t==='No') return t||'No'; var p=decodeAndTrim(eventData['Ticket Price']); return t+(p? ' — '+p : ''); })(), null, '🎫', true) +
             createDetailRow('Notes on Conflict', decodeAndTrim(eventData['Notes on Conflict']), null, '⚠️', true) +
             createDetailRow('Services Selected', selectedServicesList, 'service', '⚙️', true);
 
