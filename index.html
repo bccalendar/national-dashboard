@@ -478,9 +478,13 @@
         else if(vAddr) fullVenue = vAddr;
 
         document.getElementById('eventTitleDisplay').textContent = `#${eventData['Event ID']} ${decodeAndTrim(eventData['Board Portfolio'])} ${eLoc ? '- '+eLoc : ''} ${eRoom ? '('+eRoom+')' : ''} - ${decodeAndTrim(eventData['Event Title'])}`;
+        if (decodeAndTrim(eventData['Submission Type']) === 'Edited') {
+            document.getElementById('eventTitleDisplay').innerHTML += ' <span style="font-size:11px;font-weight:700;color:#fff;background:#f0ad4e;padding:2px 9px;border-radius:10px;vertical-align:middle;white-space:nowrap;">&#9998; EDITED</span>';
+        }
 
-        document.getElementById('overviewDetails').innerHTML = 
+        document.getElementById('overviewDetails').innerHTML =
             createDetailRow('Event ID', eventData['Event ID'], null, '🆔', true) +
+            createDetailRow('Submission Type', decodeAndTrim(eventData['Submission Type']) || 'New', null, decodeAndTrim(eventData['Submission Type'])==='Edited' ? '✎' : '🆕', true) +
             createDetailRow('Event Type', decodeAndTrim(eventData['Event Type']), null, '🏷️', true) +
             createDetailRow('Schedule', `${formatDate(eventData['Event Start Date'])} | ${decodeAndTrim(eventData['Start Time'])} - ${decodeAndTrim(eventData['End Time'])}`, null, ICONS.CAL, true) +
             createDetailRow('Recurring', (function(){ var r=decodeAndTrim(eventData['Recurring Event']); if(!r||r==='None') return 'None'; var o=decodeAndTrim(eventData['Repeat Occurrences']); return r + (o ? ' ('+o+' occurrences)' : ''); })(), null, '🔁', true) +
