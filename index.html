@@ -1,579 +1,520 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>National Event Dashboard</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
-    <style>
-        :root {
-            --bg-page: #f9f9f9;
-            --bg-card: #ffffff;
-            --bg-header: #ffffff;
-            --accent-primary: #990000;
-            --accent-secondary: #333333;
-            --text-main: #333333;
-            --text-muted: #666666;
-            --danger: #DC3545;
-            --warning: #F59E0B;
-            --info: #009CA6;
-            --border-color: #e5e5e5;
-            --pill-audience: #990000;
-            --pill-segments: #009CA6;
-            --pill-collab: #2563eb;
-            --pill-rooms: #9333ea;
-            --status-success: #009E49;
-            --status-pending: #F59E0B;
-            --status-error: #DC3545;
-            --shadow-color: rgba(0,0,0,0.05);
-            --glass-border: 1px solid rgba(255, 255, 255, 0.6);
-            --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
-            --glass-bg-opacity: 0.85;
-        }
-
-        body.dark-mode {
-            --bg-page: #121212;
-            --bg-card: #1e1e1e;
-            --bg-header: #1e1e1e;
-            --text-main: #e0e0e0;
-            --text-muted: #a0a0a0;
-            --accent-secondary: #e0e0e0;
-            --border-color: #333333;
-            --shadow-color: rgba(0,0,0,0.5);
-            --glass-border: 1px solid rgba(255, 255, 255, 0.15);
-            --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
-            --glass-bg-opacity: 0.25;
-        }
-
-        * { box-sizing: border-box; }
-        body { margin: 0; font-family: 'Open Sans', sans-serif; background: var(--bg-page); color: var(--text-main); line-height: 1.4; overflow-x: hidden; transition: background-color 0.4s ease, color 0.4s ease, opacity 0.6s ease-out; opacity: 0; }
-
-        .sticky-top-container { position: sticky; top: 0; z-index: 1000; box-shadow: 0 4px 10px rgba(0,0,0,0.1); width: 100%; }
-        
-        #statusBanner { 
-            display: block; color: #fff; text-align: center; padding: 8px; font-size: 11px; font-weight: 700; 
-            text-transform: uppercase; letter-spacing: 1.5px; border-bottom: 1px solid rgba(0,0,0,0.1); text-shadow: 0 1px 2px rgba(0,0,0,0.2);
-        }
-
-        .sticky-header { background: var(--bg-header); padding: 15px 20px; border-bottom: 4px solid var(--accent-primary); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; box-shadow: 0 2px 4px var(--shadow-color); transition: background 0.3s; }
-        
-        .header-left { display: flex; align-items: center; gap: 15px; flex: 1; min-width: 280px; }
-        .app-logo { width: 90px; height: auto; min-height: 40px; object-fit: contain; display: block; }
-        
-        .header-text-group { display: flex; flex-direction: column; min-width: 0; }
-        .main-title { font-size: 20px; font-weight: 700; margin: 0; color: var(--text-main); line-height: 1.2; word-break: break-word; font-family: 'Open Sans', sans-serif; }
-        .status-badge { padding: 5px 12px; border-radius: 4px; font-size: 12px; font-weight: 600; color: #fff !important; text-transform: uppercase; margin-top: 6px; display: inline-flex; align-items: center; gap: 6px; box-shadow: var(--glass-shadow); border: var(--glass-border); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); align-self: flex-start; transform: translateY(-1px); transition: all 0.3s ease; animation: popIn 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; opacity: 0; }
-        .status-badge:hover { transform: translateY(-2px); box-shadow: 0 6px 12px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.3); }
-
-        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 2000; justify-content: center; align-items: center; backdrop-filter: blur(2px); }
-        .modal-card { background: var(--bg-card); padding: 30px; border-radius: 12px; max-width: 450px; width: 90%; text-align: center; box-shadow: 0 20px 40px rgba(0,0,0,0.3); color: var(--text-main); }
-        .modal-btns { display: flex; gap: 10px; justify-content: center; margin-top: 20px; }
-
-        .container { width: 100%; max-width: 1400px; margin: 15px auto; padding: 0 10px; }
-        .dashboard-grid { display: grid; grid-template-columns: 1fr; gap: 15px; }
-        @media (min-width: 1024px) { .dashboard-grid { grid-template-columns: 1.1fr 0.9fr; } }
-
-        .card { background: var(--bg-card); padding: 20px; border-radius: 4px; border: 1px solid var(--border-color); margin-bottom: 20px; box-shadow: 0 1px 1px var(--shadow-color); overflow: hidden; transition: background-color 0.4s ease, border-color 0.4s ease, box-shadow 0.4s ease; }
-        .section-title { font-size: 18px; font-weight: 700; background: var(--accent-primary); color: #fff; padding: 12px 20px; margin: -20px -20px 20px -20px; display: flex; align-items: center; gap: 10px; cursor: pointer; user-select: none; }
-        .section-title span { background: rgba(255,255,255,0.2); border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; font-size: 18px; box-shadow: 0 4px 8px rgba(0,0,0,0.2); transform: translateY(-2px); border: 1px solid rgba(255,255,255,0.2); }
-        
-        .detail-row { display: grid; grid-template-columns: 200px 1fr; align-items: flex-start; padding: 10px 0; border-bottom: 1px solid #F3F4F6; font-size: 15px; gap: 15px; }
-        @media (max-width: 600px) { .detail-row { grid-template-columns: 1fr; } }
-        .detail-row strong { color: var(--text-muted); font-size: 13px; text-transform: uppercase; display: flex; align-items: center; gap: 5px; letter-spacing: 0.5px; }
-        .detail-row strong span { display: inline-block; filter: drop-shadow(2px 3px 2px rgba(0,0,0,0.2)); transform: translateY(-2px) scale(1.1); }
-        .detail-row span { font-weight: 600; text-align: left; color: var(--text-main); word-break: break-word; }
-
-        .pill-container { display: flex; flex-wrap: wrap; gap: 6px; }
-        .pill { padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 700; color: #fff; display: inline-flex; align-items: center; gap: 4px; box-shadow: var(--glass-shadow); border: var(--glass-border); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); transform: translateY(-1px); transition: all 0.3s ease; }
-        .pill:hover { transform: translateY(-2px); box-shadow: 0 6px 12px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.3); }
-        .pill-service { background: color-mix(in srgb, var(--info), transparent calc(100% - var(--glass-bg-opacity) * 100%)); }
-        .pill-audience { background: color-mix(in srgb, var(--pill-audience), transparent calc(100% - var(--glass-bg-opacity) * 100%)); }
-        .pill-segments { background: color-mix(in srgb, var(--pill-segments), transparent calc(100% - var(--glass-bg-opacity) * 100%)); }
-        .pill-collab { background: color-mix(in srgb, var(--pill-collab), transparent calc(100% - var(--glass-bg-opacity) * 100%)); }
-        .pill-rooms { background: color-mix(in srgb, var(--pill-rooms), transparent calc(100% - var(--glass-bg-opacity) * 100%)); }
-
-        .service-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
-        .service-card { position: relative; border-left: 4px solid var(--border-color); padding: 12px; background: var(--bg-page); border-radius: 4px; border: 1px solid var(--border-color); display: flex; flex-direction: column; justify-content: space-between; overflow: hidden; transition: all 0.3s ease; }
-        .service-card:hover { transform: translateY(-5px); box-shadow: 0 8px 15px rgba(0,0,0,0.1); z-index: 1; background: var(--bg-card); }
-        .card-lock-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.5); display: flex; align-items: center; justify-content: center; font-size: 20px; pointer-events: none; opacity: 0.7; z-index: 5; }
-        body.dark-mode .card-lock-overlay { background: rgba(0,0,0,0.6); color: #fff; }
-
-        .btn { padding: 8px 14px; border-radius: 4px; font-size: 11px; font-weight: 700; cursor: pointer; border: 1px solid transparent; text-align: center; margin-top: 5px; text-decoration: none; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s; text-transform: uppercase; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); box-shadow: var(--glass-shadow); border: var(--glass-border); }
-        .btn:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0,0,0,0.15); filter: brightness(1.05); }
-        .btn:active { transform: translateY(1px); box-shadow: 0 2px 5px rgba(0,0,0,0.1); filter: brightness(0.95); }
-        .btn:disabled { opacity: 0.5; cursor: not-allowed; filter: grayscale(1); }
-        .btn-primary { background: color-mix(in srgb, var(--info), transparent calc(100% - var(--glass-bg-opacity) * 100%)); color: #fff; border-color: transparent; }
-        .btn-cancel { background: color-mix(in srgb, var(--danger), transparent calc(100% - var(--glass-bg-opacity) * 100%)); color: #fff !important; border-color: transparent; }
-        .btn-cancel-outline { background: color-mix(in srgb, #fff, transparent calc(100% - var(--glass-bg-opacity) * 100%)); color: var(--danger); border-color: var(--danger); }
-        body.dark-mode .btn-cancel-outline { background: transparent; color: #ff8fa3; border-color: #ff8fa3; }
-        .btn-add { background: color-mix(in srgb, var(--info), transparent calc(100% - var(--glass-bg-opacity) * 100%)); color: #fff; border-color: transparent; }
-        .btn-muted { background: color-mix(in srgb, #eee, transparent calc(100% - var(--glass-bg-opacity) * 100%)); color: #333; }
-        body.dark-mode .btn-muted { background: rgba(255,255,255,0.1); color: #fff; }
-        .btn-reminder { background: color-mix(in srgb, #F59E0B, transparent calc(100% - var(--glass-bg-opacity) * 100%)); color: #fff; border-color: transparent; }
-
-        .spinner { display: none; width: 20px; height: 20px; border: 3px solid rgba(0,0,0,.1); border-top-color: var(--accent-primary); border-radius: 50%; animation: spin 1s linear infinite; }
-        @keyframes spin { to { transform: rotate(360deg); } }
-        @keyframes popIn { 0% { opacity: 0; transform: scale(0.9) translateY(5px); } 100% { opacity: 1; transform: scale(1) translateY(-1px); } }
-
-        .contact-block { margin-bottom: 12px; font-size: 15px; background: var(--bg-page); padding: 8px; border-radius: 6px; border: 1px solid var(--border-color); }
-        .contact-block strong { display: block; color: var(--accent-secondary); margin-bottom: 2px; }
-        .contact-link { display: flex; align-items: center; gap: 6px; color: var(--info); text-decoration: none; font-weight: 600; margin-bottom: 1px; font-size: 12px; }
-        body.dark-mode .contact-link { color: #4fd1db; }
-
-        .toggle-dark { padding: 8px 14px; border-radius: 4px; font-size: 14px; cursor: pointer; border: var(--glass-border); background: transparent; color: var(--text-main); transition: all 0.2s; display: flex; align-items: center; justify-content: center; height: 33px; margin-top: 5px; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); box-shadow: var(--glass-shadow); }
-        .toggle-dark:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0,0,0,0.15); }
-
-        @media print {
-            .sticky-top-container { position: static; box-shadow: none; }
-            .header-actions, .btn, .toggle-dark, .modal-overlay { display: none !important; }
-            .card { break-inside: avoid; box-shadow: none; border: 1px solid #ccc; page-break-inside: avoid; background: #fff; }
-            body { background: #fff; color: #000; }
-            .section-title { color: #000 !important; background: #eee !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-            .section-title span { color: #000; border-color: #ccc; background: transparent; box-shadow: none; }
-            .card-content { max-height: none !important; display: block !important; overflow: visible !important; }
-            .status-badge { border: 1px solid #000; color: #000 !important; box-shadow: none; background: transparent !important; }
-            .pill { border: 1px solid #ccc; color: #000 !important; background: #fff !important; box-shadow: none; }
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>National Event Request Form</title>
+<style>
+  :root{
+    --bg-page:#f4f6f9; --card:#ffffff; --text-main:#1f2a37; --text-muted:#6b7280;
+    --border:#e5e7eb; --primary:#d9534f; --primary-2:#c0392b; --accent:#2c3e50;
+    --ok:#2e7d32; --focus:#2563eb; --radius:10px;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg-page:#0f172a; --card:#1e293b; --text-main:#e5e7eb; --text-muted:#94a3b8;
+      --border:#334155; --accent:#cbd5e1;
+    }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg-page);color:var(--text-main);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;line-height:1.5}
+  .wrap{max-width:860px;margin:0 auto;padding:24px 16px 60px}
+  header.top{display:flex;align-items:center;gap:14px;margin-bottom:8px}
+  header.top img{height:44px;width:auto}
+  h1{font-size:22px;margin:0;color:var(--accent)}
+  .sub{color:var(--text-muted);font-size:13px;margin:2px 0 22px}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:20px 20px 8px;margin-bottom:18px;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+  .card h2{font-size:15px;margin:0 0 16px;padding-bottom:10px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px}
+  .field{margin-bottom:16px}
+  .field label{display:block;font-size:13px;font-weight:600;margin-bottom:6px}
+  .field .req{color:var(--primary)}
+  .field .help{font-size:12px;color:var(--text-muted);margin-top:4px}
+  input[type=text],input[type=email],input[type=tel],input[type=number],input[type=date],select,textarea{
+    width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--text-main);font-size:14px;font-family:inherit}
+  textarea{min-height:84px;resize:vertical}
+  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--focus);box-shadow:0 0 0 3px color-mix(in srgb,var(--focus),transparent 82%)}
+  .checks{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px}
+  .chk{display:flex;align-items:flex-start;gap:8px;font-size:13px;font-weight:400;padding:8px 10px;border:1px solid var(--border);border-radius:8px;cursor:pointer;background:var(--card)}
+  .chk input{margin-top:2px}
+  .chk.sel{border-color:var(--focus);background:color-mix(in srgb,var(--focus),transparent 92%)}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:620px){.row2{grid-template-columns:1fr}}
+  .actions{display:flex;gap:12px;align-items:center;margin-top:8px}
+  .btn{border:none;border-radius:8px;padding:12px 22px;font-size:15px;font-weight:600;cursor:pointer}
+  .btn-primary{background:var(--primary);color:#fff}
+  .btn-primary:hover{background:var(--primary-2)}
+  .btn[disabled]{opacity:.6;cursor:not-allowed}
+  .err{color:var(--primary);font-size:12px;margin-top:4px;display:none}
+  .field.invalid .err{display:block}
+  .field.invalid input,.field.invalid select,.field.invalid textarea{border-color:var(--primary)}
+  .banner{padding:12px 14px;border-radius:8px;font-size:14px;margin-bottom:16px;display:none}
+  .banner.show{display:block}
+  .banner.error{background:color-mix(in srgb,var(--primary),transparent 88%);color:var(--primary-2);border:1px solid var(--primary)}
+  #successPanel{display:none;text-align:center;padding:40px 20px}
+  #successPanel .big{font-size:40px}
+  #successPanel h2{color:var(--ok)}
+  #successPanel a.dash{display:inline-block;margin-top:14px;background:var(--primary);color:#fff;padding:12px 22px;border-radius:8px;text-decoration:none;font-weight:600}
+  .spin{display:none;width:18px;height:18px;border:3px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:sp .8s linear infinite}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  .intro{background:color-mix(in srgb,var(--focus),transparent 92%);border-left:4px solid var(--focus);border-radius:8px;padding:14px 16px;margin-bottom:18px;font-size:13px;color:var(--text-main)}
+  .intro p{margin:0 0 8px}
+  .intro ol{margin:6px 0 0;padding-left:20px}
+  .intro li{margin-bottom:6px}
+  .section-note{font-size:12.5px;color:var(--text-muted);margin:-6px 0 14px}
+  .chk-desc{font-size:11px;color:var(--text-muted);margin-top:3px;font-weight:400;line-height:1.35}
+</style>
 </head>
 <body>
-
-    <div class="sticky-top-container">
-        <div id="statusBanner"></div>
-        <div class="sticky-header" id="mainStickyHeader">
-            <div class="header-left">
-                <img id="appLogo" class="app-logo" src="https://balmoralaid-my.sharepoint.com/:i:/g/personal/bc_calendar_iicanada_net/IQDia9074O6nRoBnyx6CfOYUAVC5g3j_1K2iBRxSH-1A-qU?e=Ybmhls&download=1" alt="Logo" onerror="this.style.display='none';">
-                <div class="header-text-group">
-                    <h1 class="main-title" id="eventTitleDisplay">Loading...</h1>
-                    <div id="headerBadge" class="status-badge">...</div>
-                </div>
-            </div>
-            <div class="header-actions" style="display: flex; gap: 8px; align-items: center;">
-                <div id="loadingSpinner" class="spinner"></div>
-                <button id="btnPrint" class="toggle-dark" onclick="window.print()" title="Print Dashboard"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg></button>
-                <button id="btnRefresh" class="toggle-dark" onclick="window.location.reload()" title="Reload Page"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10"></path></svg></button>
-                <button id="btnThemeToggle" class="toggle-dark" onclick="toggleDarkMode()" title="Toggle Dark Mode"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg></button>
-                <button id="btnEdit" class="btn btn-primary"></button>
-                <button id="btnCancelEvent" class="btn btn-cancel"></button>
-            </div>
-        </div>
+<div class="wrap">
+  <header class="top">
+    <img src="https://balmoralaid-my.sharepoint.com/:i:/g/personal/bc_calendar_iicanada_net/IQDia9074O6nRoBnyx6CfOYUAVC5g3j_1K2iBRxSH-1A-qU?e=Ybmhls&download=1" alt="" onerror="this.style.display='none'">
+    <div>
+      <h1 id="formTitle">National Event Request Form</h1>
+      <div class="sub" id="formSub">Submit a new event request for review and approval.</div>
     </div>
+  </header>
 
-    <div id="confirmModal" class="modal-overlay">
-        <div class="modal-card">
-            <div id="modalPrompt">
-                <h3 id="modalTitle" style="color:var(--danger); margin-top:0;">Confirm Action</h3>
-                <p id="modalMsg" style="font-size:14px; color:var(--text-muted); line-height:1.6;"></p>
-                <div class="modal-btns">
-                    <button class="btn btn-muted" onclick="closeModal()">Go Back</button>
-                    <button id="confirmBtn" class="btn">Confirm</button>
-                </div>
-            </div>
-        </div>
-    </div>
+  <div class="banner error" id="errorBanner"></div>
+  <form id="eventForm" novalidate></form>
 
-    <div class="container">
-        <div class="dashboard-grid">
-            <div class="left-col">
-                <div class="card">
-                    <h2 class="section-title" onclick="toggleCard(this)"><span>📅</span> Event Overview</h2>
-                    <div class="card-content" style="transition: max-height 0.4s ease-out; overflow: hidden;">
-                        <div id="overviewDetails"></div>
-                        <div style="margin-top:20px;">
-                            <h3 style="font-size:12px; font-weight:700; text-transform:uppercase; color:var(--text-muted); margin:0 0 8px 0; display:flex; align-items:center; gap:6px; letter-spacing:0.5px;"><span>📝</span> Description</h3>
-                            <div id="eventDescriptionDisplay" style="padding:15px; background:var(--bg-page); border-radius:4px; border: 1px solid var(--border-color); font-size:15px; line-height:1.6; color:var(--text-main); white-space: pre-wrap;"></div>
-                        </div>
-                    </div>
-                </div>
-                <div class="card">
-                    <h2 class="section-title" onclick="toggleCard(this)"><span>🎯</span> Event Details</h2>
-                    <div class="card-content" style="transition: max-height 0.4s ease-out; overflow: hidden;">
-                        <div id="scopeDetails"></div>
-                    </div>
-                </div>
-            </div>
-            <div class="right-col">
-                <div class="card">
-                    <h2 class="section-title" onclick="toggleCard(this)"><span>🛠️</span> Services Required</h2>
-                    <div class="card-content" style="transition: max-height 0.4s ease-out; overflow: hidden;">
-                        <div id="servicesRequiredGrid" class="service-grid"></div>
-                    </div>
-                </div>
-                <div class="card">
-                    <h2 class="section-title" onclick="toggleCard(this)"><span>👤</span> Contacts</h2>
-                    <div class="card-content" style="transition: max-height 0.4s ease-out; overflow: hidden;">
-                        <div id="requesterDetails"></div>
-                        <hr style="border:0; border-top:1px solid var(--border-color); margin:15px 0;">
-                        <div id="leadsDetails"></div>
-                    </div>
-                </div>
-                <div class="card">
-                    <h2 class="section-title" onclick="toggleCard(this)"><span>🕑</span> Change History</h2>
-                    <div class="card-content" style="transition: max-height 0.4s ease-out; overflow: hidden;">
-                        <div id="changeHistoryList"></div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+  <div id="successPanel">
+    <div class="big">✅</div>
+    <h2>Request submitted</h2>
+    <p id="successMsg" style="color:var(--text-muted)"></p>
+    <a class="dash" id="dashLink" href="#" target="_blank" rel="noopener">Open the Event Dashboard</a>
+  </div>
+</div>
 
 <script>
-    // Post-import: replace https://default98d027077ed646d2acf222ebdd2d5c.17.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/15/workflows/376521a97f7a46f6a3dd23a663b869ef/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=l4BxP4L8j2BFA-AmWL8MQFpKeN2PU8IGG7Y67prOJFQ with the HTTP POST URL of "National - Manage Events And Services".
-    const MANAGE_URL = "https://default98d027077ed646d2acf222ebdd2d5c.17.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/15/workflows/376521a97f7a46f6a3dd23a663b869ef/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=l4BxP4L8j2BFA-AmWL8MQFpKeN2PU8IGG7Y67prOJFQ";
-    const _q = new URLSearchParams(location.search);
-    const EVENT_CTX = { id: _q.get('eventid')||'', region: _q.get('r')||'' };
-    // Post-import: paste the GET (invoke) URL of the 'National - Event Dashboard' flow here.
-    const DASHBOARD_URL = "https://default98d027077ed646d2acf222ebdd2d5c.17.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/26/workflows/4dc26a4bca92432bb847c47860e3667f/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=qlK5yTiztt4951SYCmr6KoomyqGe1HX5y1XWguGpyIA";
-    const LOGO_LIGHT = "https://balmoralaid-my.sharepoint.com/:i:/g/personal/bc_calendar_iicanada_net/IQDia9074O6nRoBnyx6CfOYUAVC5g3j_1K2iBRxSH-1A-qU?e=Ybmhls&download=1";
-    const LOGO_DARK = "https://balmoralaid-my.sharepoint.com/:i:/g/personal/bc_calendar_iicanada_net/IQA-FWia5eMoQJeqyVLmvIkGASn3z4QxC1l5j0cR0Cn65sM?e=G2j86P&download=1";
+/* ============================================================================
+   1) SETTINGS
+   ============================================================================ */
+const FLOW_URL = "https://default98d027077ed646d2acf222ebdd2d5c.17.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/02/workflows/296063f569bc4eaf87cd4fa3e2d43cbb/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=i5srnnoXynkkmhK4IAlXhocTgvp_-tOHucExE59nBmY";
+const DASHBOARD_URL = "https://default98d027077ed646d2acf222ebdd2d5c.17.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/26/workflows/4dc26a4bca92432bb847c47860e3667f/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=qlK5yTiztt4951SYCmr6KoomyqGe1HX5y1XWguGpyIA";
+const TIME_STEP = 15; // minutes between time options (set 30 for half-hour only)
 
-    let eventData = {};
+/* ============================================================================
+   2) OPTION LISTS  (values are what the flow stores — must match Region Config / SharePoint)
+   ============================================================================ */
+// region value MUST equal the Title in your Region Config list:
+const REGIONS = [
+  { label:"All Canada", value:"All Canada" },
+  { label:"British Columbia", value:"British Columbia" },
+  { label:"Edmonton", value:"Edmonton" },
+  { label:"Toronto", value:"Toronto" },
+  { label:"Southwest Ontario", value:"Southwest Ontario" },
+  { label:"Northeast Ontario", value:"Northeast Ontario" },
+  { label:"All Ontario", value:"All Ontario" },
+  { label:"Prairies", value:"Prairies" },
+  { label:"Quebec and Maritimes", value:"Quebec and Maritimes" }
+];
+const SWO = "Southwest Ontario";
 
-    let serviceStatuses = {};
+// Region-specific intro shown once a Region is selected. Add other regions' text as needed.
+const REGION_INTRO = {
+  "British Columbia": `<p>Use this form to submit event requests to be Approved and added to the <strong>BC Institutional Calendar (BIC)</strong>. Please ensure that the event has been submitted a minimum of <strong>eight (8) weeks</strong> prior to the date of your event. This will allow the collaborating Board/Portfolios to provide the required support for the event in a timely manner.</p>
+  <p>The approval process is as follows:</p>
+  <ol>
+    <li>Check the calendar ahead of submission for any location, time or target segment conflicts. Please try to resolve any conflicts with Boards/Portfolios ahead of submission, if possible.</li>
+    <li>Submit your event using this form. This will generate an approval workflow to your Board/Portfolio Chair for Primary Approval, followed by Council for BC Honorary Secretary and/or ITREB for BC Honorary Secretary for Final Approval.</li>
+    <li>If your event is approved, you will receive a confirmation email and it will be added to the BIC. You can then proceed with planning your event.</li>
+    <li>If your event is not approved, you will receive an email with a comment explaining why the event was rejected. Once you have resolved this, you may resubmit a new request. If you need to add information regarding the resolution of the conflict or issue, use the 'Notes on Conflicts' field in the form.</li>
+    <li>If you are submitting a placeholder for your event, please put the word <strong>HOLD</strong> in the title so that others are aware this booking is tentative and may change.</li>
+  </ol>`,
+  "Southwest Ontario": `<p>Use this form to submit event requests to be Approved and added to the <strong>Council for Southwest Ontario Institutional Calendar (SWIC)</strong>. Please ensure that the event has been submitted a minimum of <strong>six (6) weeks</strong> prior to the date of your event. This will allow the collaborating Board/Portfolios to provide the required support for the event in a timely manner.</p>
+  <p>The approval process is as follows:</p>
+  <ol>
+    <li>Check the calendar ahead of submission for any location, time or target segment conflicts. Please try to resolve any conflicts with Boards/Portfolios ahead of submission, if possible.</li>
+    <li>Submit your event using this form. This will generate an approval workflow for Primary Approval, followed by Final Approval by the Institutional Delivery Excellence (IDE) Program Team.</li>
+    <li>If your event is approved, you will receive a confirmation email and it will be added to the SWIC. You can then proceed with planning your event.</li>
+    <li>If your event is not approved, you will receive an email with a comment explaining why the event was rejected. Once you have resolved this, you may resubmit a new request. If you need to add information regarding the resolution of the conflict or issue, use the 'Notes on Conflicts' field in the form.</li>
+    <li>If you are submitting a placeholder for your event, please put the word <strong>HOLD</strong> in the title so that others are aware this booking is tentative and may change.</li>
+  </ol>`
+};
 
-    let changeLog = [];
+const BOARDS = [
+  "Arts & Culture","ACCESS","Care for the Elderly (CFTE)","Communications & Publications","Community Assets",
+  "Community Services (Rites of Passage)","Conciliation & Arbitration Board (CAB)","Council for the Prairies",
+  "Data Management & Technology","Aga Khan Economic Planning Board (EPB)","Aga Khan Education Board","External Relations",
+  "Financial Resource Development","Future Ready Initiative","Grants & Review Board (GRB)","Aga Khan Health Board",
+  "Institutional Delivery Excellence","Ismaili Tariqah & Religious Education Board (ITREB)","Jamati MKMKs","Legal Matters",
+  "Property Matters","Settlement","Aga Khan Social Welfare Board (SWB)","Volunteer Management",
+  "Aga Khan Youth & Sports Board (YSB)","Equity Diversity Inclusion & Belonging","Aga Khan Development Network (AKDN)",
+  "Aga Khan Foundation Canada (AKFC)","Aga Khan Museum (AKM)","Focus Canada","Global Encounters",
+  "Global Centre for Pluralism (GCP)","World Partnership Golf","World Partnership Walk","Council for Canada"
+];
+const B_ITREB = "Ismaili Tariqah & Religious Education Board (ITREB)";
+const B_YSB   = "Aga Khan Youth & Sports Board (YSB)";
+// Boards that show NO Area of Focus / Objective:
+const BOARDS_NO_AOF = ["Conciliation & Arbitration Board (CAB)","Grants & Review Board (GRB)","ACCESS"];
 
-    const ICONS = { 
-        LOCK: '<span style="color:inherit">🔒</span>', 
-        CHECK: '<span style="color:inherit">☑️</span>', 
-        WAIT: '⏳', EDIT: '📝', 
-        CANCEL: '<span style="color:inherit">🆇</span>', 
-        OPEN: '🔗', MAIL: '✉️', PHONE: '📞', PIN: '📍', CAL: '📅', VIRTUAL: '💻', PLUS: '➕', LIVE: '🟢', BELL: '🔔' 
+const AOF_ITREB = ["Adult Education","BUI Early Childhood Development (ECD)","BUI Primary","BUI Secondary","Jamati Activities","Waezeen","Other"];
+const AOF_YSB   = ["Camps","Ismaili CIVIC","Positive Youth Development","Sports","Youth"];
+const AOF_OTHER = ["Adult Education","BUI Early Childhood Development (ECD)","BUI Primary","BUI Secondary","Jamati Activities","Waezeen","Camps","Ismaili CIVIC","Positive Youth Development","Sports","Youth","Other"];
+// NOTE: single Objective list for now. If you want objectives filtered by Area of Focus (as in Drupal),
+// send me the per-area objective sub-lists and I'll wire objectivesBy(area).
+const OBJECTIVES = [
+  "Strengthen Ismaili identity (YSB) - Young Adult",
+  "Strengthen Ismaili identity (YSB) - Youth",
+  "Increase access to religious education for Adults 18+",
+  "Increase access to religious education for ages 4-18 (BUI, ERP)",
+  "Enhance the quality of religious education via teacher training and development",
+  "All Ismaili youth will have the skills to be leaders in their discipline, within and outside the Shia Imami Ismaili community",
+  "Support and contribute to the development of resilient youth",
+  "All Ismaili youth will have a strong sense of identity, be able to articulate the values of and be ambassadors of the Shia Imami Ismaili community",
+  "All Ismaili youth will feel a sense of belonging within the Shia Imami Ismaili community",
+  "The Canadian Jamat will be healthy and active through their participation in organized/life sports and physical activity",
+  "Expand and strengthen sustainable integrated coordinated programming",
+  "Parental engagement",
+  "Training and religious education to Jamati Leadership"
+];
+
+// Per-region event-location lists:
+const LOC_SWO = ["All Jamatkhanas","Brantford","Brampton","Guelph","Halton","Hamilton","Kitchener–Headquarters","London","Meadowvale","Mississauga","NiagaraFalls","Windsor","Other"];
+const LOC_BC  = ["Ismaili Centre Vancouver Jamatkhana (Darkhana)","Headquarters Vancouver Jamatkhana","Richmond Jamatkhana","Burnaby Lake Jamatkhana","Tri-City Jamatkhana","Fraser Valley Jamatkhana","Downtown Jamatkhana","Other"];
+const LOC_PRAIRIES = ["Headquarters","Franklin","Northwest","South","Westwinds","Generations","All Calgary Jamatkhanas","External venue"];
+function locationsFor(region){
+  if(region===SWO) return LOC_SWO;
+  if(region==="British Columbia") return LOC_BC;
+  if(region==="Prairies") return LOC_PRAIRIES;
+  return ["Other"]; // add other regions' lists here as needed
+}
+
+const ATTENDEES = ["0 - 25","26 - 50","51 - 100","101 - 200","201 - 499","500+"];
+const AUDIENCE = ["Jamat","Leadership","Ummah","External","Government","Other"];
+const TARGET_SEGMENTS = ["Early Childhood Development (ECD) (0-4 yrs)","Young (5-11 yrs)","Youth (12-17 yrs)","Post Secondary (18-25 yrs)","Young Adults (25-35 yrs)","Adults (35-54 yrs)","Seniors (55+ yrs)","All"];
+const SERVICES = [
+  { label:"Arts & Culture", value:"Arts & Culture", desc:"Music, Bands, Performance Arts, Visual Arts, etc." },
+  { label:"Communications", value:"Communications", desc:"Announcements, Communication & Marketing Plans, Digital Communications (iiCanada, Digital Al-Akhbar (DAA), Social Media, JamatKhana eBoards), Photos, Videos, Event Registration & Ticket Sales, etc." },
+  { label:"Legal", value:"Legal", desc:"Waivers, Contracts, etc." },
+  { label:"Audio Visual", value:"Audio Visual", desc:"Audio Visuals, Microphones, Speakers, Projector, Live Stream, etc." },
+  { label:"Transportation", value:"Transportation", desc:"Material or People Transportation (Bus/Shuttle)." },
+  { label:"Volunteer Management", value:"Volunteer Management", desc:"Event Resources (Setup, Takedown, Service, Food, Security, People Resources, etc.)." }
+];
+const EVENT_TYPES = ["Meeting","New Event","Program"];
+const EVENT_LEADS = ["Requester is the Project Lead and Day Lead","Requester is the Project Lead, but the Day Lead is someone else","Project Lead and Day Leads are someone else"];
+const EL_DPD = "Project Lead and Day Leads are someone else";
+const EL_DDL = "Requester is the Project Lead, but the Day Lead is someone else";
+
+/* ============================================================================
+   3) FORM DEFINITION  (key = FormResponse key the flow expects)
+   ============================================================================ */
+const SECTIONS = [
+  { title:"📅 Calendar Details", note:"This information is used to create the Institutional Calendar entry and room booking for your event.", fields:[
+    { key:"Region", label:"Region", type:"select", required:true, options:REGIONS },
+    { key:"Event Title", label:"Event Title", type:"text", required:true, help:"For a tentative booking, start the title with the word HOLD." },
+    // Event Type is shown for all regions EXCEPT SWO (matches Drupal conditional):
+    { key:"Event Type", label:"Event Type", type:"select", options:EVENT_TYPES,
+      showIf:v=> v["Region"] && v["Region"]!==SWO },
+    { key:"Event Description", label:"Event Description", type:"textarea", required:true },
+    { key:"Event Start Date", label:"Event Start Date", type:"date", required:true },
+    { key:"Start Time", label:"Start Time", type:"time", required:true, half:true, help:"Include the setup time you'll need." },
+    { key:"End Time", label:"End Time", type:"time", required:true, half:true, help:"Include the takedown/cleanup time you'll need." },
+    { key:"Recurring Event", label:"Is this a recurring event?", type:"select", required:true,
+      options:["None","Daily","Weekly","Bi-Weekly","Monthly"] },
+    { key:"Number Of Repeat Occurrences", label:"Number of Repeat Occurrences", type:"number", min:1, required:true,
+      help:"How many times the event repeats (a number).",
+      showIf:v=> v["Recurring Event"] && v["Recurring Event"]!=="None" },
+    { key:"Virtual Event", label:"Will your event take place virtually?", type:"select", required:true,
+      options:["No","Yes"] },
+    { key:"Event Location", label:"Event Location", type:"multiselect", required:true, join:" - ",
+      help:"Select one or more locations.",
+      optionsBy:v=> locationsFor(v["Region"]),
+      showIf:v=> v["Virtual Event"]!=="Yes" },
+    { key:"Venue Name", label:"Venue Name", type:"text", required:true, half:true,
+      showIf:v=> v["Virtual Event"]!=="Yes" && v["Event Location"]==="Other" },
+    { key:"Venue Address", label:"Venue Address", type:"textarea", required:true,
+      showIf:v=> v["Virtual Event"]!=="Yes" && v["Event Location"]==="Other" },
+    { key:"Notes on Conflicts", label:"Notes on Conflicts", type:"textarea",
+      help:"Optional — if you had conflicts and resolved them, add notes for the approvers (e.g. \"resolved conflict with Board X for Event Y, please delete event Z\")." }
+  ]},
+  { title:"🎯 Event Details", fields:[
+    { key:"Responsible Board", label:"Responsible Board / Portfolio", type:"select", required:true, options:BOARDS },
+    { key:"Area of Focus", label:"Area of Focus", type:"select", required:true,
+      help:"Enter the area of focus / sub-team for your Board/Portfolio.",
+      optionsBy:v=> v["Responsible Board"]===B_ITREB ? AOF_ITREB : (v["Responsible Board"]===B_YSB ? AOF_YSB : AOF_OTHER),
+      showIf:v=> v["Responsible Board"] && BOARDS_NO_AOF.indexOf(v["Responsible Board"])===-1 },
+    { key:"Objective", label:"Objective", type:"select", required:true, options:OBJECTIVES,
+      help:"The objective of this event for your Board/Portfolio.",
+      showIf:v=> v["Responsible Board"] && BOARDS_NO_AOF.indexOf(v["Responsible Board"])===-1 },
+    { key:"Audience", label:"Audience", type:"multiselect", required:true, options:AUDIENCE },
+    // Target Segments only when Audience includes "Jamat":
+    { key:"Target Segments", label:"Target Segments", type:"multiselect", required:true, options:TARGET_SEGMENTS,
+      showIf:v=> Array.isArray(v["Audience"]) && v["Audience"].indexOf("Jamat")!==-1 },
+    { key:"Collaborating Boards", label:"Collaborating Boards / Portfolios", type:"multiselect", options:BOARDS },
+    { key:"Services needed", label:"Services Needed", type:"multiselect", required:true, options:SERVICES,
+      help:"Select all the services you'll require for your event." },
+    { key:"Expected Number of Attendees", label:"Expected Number of Attendees", type:"select", required:true, options:ATTENDEES },
+    // ---- SWO-only fields (shown only when Region = Southwest Ontario) ----
+    { key:"Serving Refreshments", label:"Are you serving refreshments?", type:"select", required:true, options:["No","Yes"],
+      showIf:v=> v["Region"]===SWO },
+    { key:"Refreshment Details", label:"Refreshment Details", type:"textarea", required:true,
+      showIf:v=> v["Region"]===SWO && v["Serving Refreshments"]==="Yes" },
+    { key:"Ticketed Event", label:"Does your event have tickets?", type:"select", required:true, options:["No","Yes","Yes (Subsidized)"],
+      showIf:v=> v["Region"]===SWO },
+    { key:"Ticket Price", label:"Ticket Price", type:"text", required:true,
+      showIf:v=> v["Region"]===SWO && (v["Ticketed Event"]==="Yes" || v["Ticketed Event"]==="Yes (Subsidized)") },
+    { key:"Has Budget", label:"Do you have budget for the event?", type:"select", required:true, options:["No","Yes"],
+      showIf:v=> v["Region"]===SWO },
+    { key:"Cost Breakdown", label:"Please provide a cost breakdown for the event", type:"textarea", required:true,
+      showIf:v=> v["Region"]===SWO && v["Has Budget"]==="Yes" }
+  ]},
+  { title:"👤 Contact Details", note:"This information is used for the Institutional Calendar entry and event coordination.", fields:[
+    { key:"Name", label:"Your Name", type:"text", required:true, half:true },
+    { key:"Email Address", label:"Your Email", type:"email", required:true, validate:"email", half:true },
+    { key:"Phone Number", label:"Your Phone", type:"tel", required:true, validate:"phone", half:true },
+    { key:"Event Leads", label:"Event Leads", type:"select", required:true, options:EVENT_LEADS },
+    // Project Lead: only when "Project Lead and Day Leads are someone else"
+    { key:"Project Lead Name", label:"Project Lead Name", type:"text", required:true, half:true,
+      showIf:v=> v["Event Leads"]===EL_DPD },
+    { key:"Project Lead Email", label:"Project Lead Email", type:"email", required:true, validate:"email", half:true,
+      showIf:v=> v["Event Leads"]===EL_DPD },
+    { key:"Project Lead Phone", label:"Project Lead Phone", type:"tel", validate:"phone", half:true,
+      showIf:v=> v["Event Leads"]===EL_DPD },
+    // Day-of Lead: when day lead is someone else (both "ddl" and "dpd")
+    { key:"Day of Event Lead Name", label:"Day-of Lead Name", type:"text", required:true, half:true,
+      showIf:v=> v["Event Leads"]===EL_DDL || v["Event Leads"]===EL_DPD },
+    { key:"Day of Event Lead Email", label:"Day-of Lead Email", type:"email", required:true, validate:"email", half:true,
+      showIf:v=> v["Event Leads"]===EL_DDL || v["Event Leads"]===EL_DPD },
+    { key:"Day of Event Lead Phone", label:"Day-of Lead Phone", type:"tel", validate:"phone", half:true,
+      showIf:v=> v["Event Leads"]===EL_DDL || v["Event Leads"]===EL_DPD }
+  ]}
+];
+const ARRAY_KEYS = ["Room Booking","Audience","Target Segments","Collaborating Boards","Services needed"];
+
+/* ============================================================================
+   4) ENGINE
+   ============================================================================ */
+const q = new URLSearchParams(location.search);
+const EDIT_ID = q.get('eid') || q.get('eventid') || '';
+const PRESET_REGION = q.get('region') || q.get('r') || '';
+const form = document.getElementById('eventForm');
+const values = {};
+const fieldEls = {};
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function el(tag, attrs, html){ const e=document.createElement(tag); if(attrs) for(const k in attrs) e.setAttribute(k,attrs[k]); if(html!=null) e.innerHTML=html; return e; }
+const norm = o => (typeof o==='string' ? {label:o, value:o} : o);
+function buildTimeOptions(){ const out=[]; for(let h=0;h<24;h++){ for(let m=0;m<60;m+=TIME_STEP){ const ap=h>=12?'pm':'am'; let h12=h%12; if(h12===0)h12=12; out.push(h12+':'+String(m).padStart(2,'0')+' '+ap); } } return out; }
+const TIME_OPTIONS = buildTimeOptions();
+function validPhone(s){ const d=String(s||'').replace(/\D/g,''); return /^1?\d{10}$/.test(d); }
+
+function buildField(def){
+  const wrap = el('div',{class:'field','data-key':def.key});
+  const id = 'f_'+def.key.replace(/[^a-z0-9]/gi,'_');
+  wrap.appendChild(el('label',{for:id}, def.label + (def.required?' <span class="req">*</span>':'')));
+  let rebuild = null, setFn = null;
+
+  if(def.type==='select' || def.type==='time'){
+    const s = el('select',{id});
+    const getOpts = ()=> def.type==='time' ? TIME_OPTIONS : (def.optionsBy ? def.optionsBy(values) : (def.options||[]));
+    const fill = ()=>{
+      const cur = values[def.key]||'';
+      s.innerHTML=''; s.appendChild(el('option',{value:''},'— Select —'));
+      const list = getOpts().map(norm);
+      list.forEach(o=> s.appendChild(el('option',{value:o.value}, o.label)));
+      if(list.some(o=>o.value===cur)){ s.value=cur; } else { s.value=''; values[def.key]=''; }
     };
-
-    function decodeAndTrim(v) {
-        if (!v || v === 'undefined' || v === 'null' || v === '%20' || v === '') return '';
-        try { return decodeURIComponent(String(v)).replace(/\+/g, ' ').trim(); } catch(e) { return String(v).trim(); }
-    }
-
-    function formatDate(d) {
-        if (!d) return '';
-        // Use only the calendar date (YYYY-MM-DD) as a LOCAL date so timezones never shift the day
-        var m = String(d).match(/^(\d{4})-(\d{2})-(\d{2})/);
-        var date = m ? new Date(+m[1], +m[2]-1, +m[3]) : new Date(d);
-        if (isNaN(date)) return d;
-        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-    }
-
-    function splitDelimited(s) {
-        // Handles delimiter-based multi-values like "- Brantford - Brampton" and single values
-        s = decodeAndTrim(s).replace(/^[-–—]\s*/, '');
-        var parts = s.split(/\s+[-–—]\s+/).map(function(x){ return x.trim(); }).filter(Boolean);
-        return parts.length ? parts : (s ? [s] : []);
-    }
-    function parseMultiSelect(data) {
-        if (!data || data === '[]') return [];
-        try {
-            const parsed = typeof data === 'string' ? JSON.parse(data) : data;
-            if (Array.isArray(parsed)) {
-                var out = [];
-                parsed.forEach(function(item){ out = out.concat(splitDelimited(item.Value || item)); });
-                return out;
-            }
-            return splitDelimited(parsed.Value || parsed);
-        } catch(e) { return splitDelimited(data); }
-    }
-
-    function closeModal() { document.getElementById('confirmModal').style.display = 'none'; }
-
-    function openModal(title, message, btnText, btnClass, callback) {
-        const modal = document.getElementById('confirmModal');
-        document.getElementById('modalTitle').innerText = title;
-        document.getElementById('modalMsg').innerHTML = message;
-        const confirmBtn = document.getElementById('confirmBtn');
-        confirmBtn.innerText = btnText;
-        confirmBtn.className = 'btn ' + btnClass;
-        modal.style.display = 'flex';
-        confirmBtn.onclick = () => { callback(); closeModal(); };
-    }
-
-    function toggleDarkMode() {
-        document.body.classList.toggle('dark-mode');
-        const isDark = document.body.classList.contains('dark-mode');
-        // Icon remains the moon as requested, but we could toggle fill if needed. For now, keeping the SVG static as requested "show a moon".
-        
-        const logo = document.getElementById('appLogo');
-        if(logo) logo.src = isDark ? LOGO_DARK : LOGO_LIGHT;
-        
-        // Update status badge background if needed for glass effect
-        const badge = document.getElementById('headerBadge');
-        if(badge && isDark) badge.style.background = `color-mix(in srgb, ${badge.dataset.color}, transparent 40%)`;
-        else if(badge) badge.style.background = badge.dataset.color;
-    }
-
-    function toggleCard(header) {
-        const content = header.nextElementSibling;
-        if (!content.style.maxHeight) {
-            // Currently open (auto), close it
-            content.style.maxHeight = content.scrollHeight + 'px';
-            content.offsetHeight; // Force reflow
-            content.style.maxHeight = '0px';
-            header.classList.add('collapsed');
-        } else {
-            // Currently closed, open it
-            content.style.maxHeight = content.scrollHeight + 'px';
-            header.classList.remove('collapsed');
-            setTimeout(() => { if (!header.classList.contains('collapsed')) content.style.maxHeight = null; }, 400);
-        }
-    }
-
-    function triggerFlowAction(serviceType, actionType) {
-        if (MANAGE_URL.indexOf('http') !== 0) { alert('Management endpoint not configured yet (MANAGE_URL). Wire it after import.'); return; }
-        const spinner = document.getElementById('loadingSpinner');
-        const isNewTabAction = ['edit', 'open'].includes(actionType);
-        let nw = isNewTabAction ? window.open('about:blank', '_blank') : null;
-        spinner.style.display = 'block';
-
-        fetch(MANAGE_URL, {
-            method: 'POST',
-            body: JSON.stringify({ eventId: EVENT_CTX.id, region: EVENT_CTX.region, service: serviceType, action: actionType })
-        })
-        .then(response => response.text())
-        .then(data => {
-            const trimmedData = data.trim();
-            if (isNewTabAction && nw) {
-                if (trimmedData.startsWith('http')) { nw.location.href = trimmedData; } 
-                else { nw.document.open(); nw.document.write(data); nw.document.close(); }
-            } else if (trimmedData.startsWith('http')) {
-                window.location.href = trimmedData;
-            } else {
-                document.open(); document.write(data); document.close();
-            }
-        })
-        .catch(err => { if(nw) nw.close(); alert('Request failed.'); })
-        .finally(() => { spinner.style.display = 'none'; });
-    }
-
-    function createDetailRow(label, value, pillType = null, icon = '', forceShow = false) {
-        const list = Array.isArray(value) ? value : [value];
-        const cleanList = list.filter(item => item && item !== '—' && item !== '' && item !== 'null');
-        if (cleanList.length === 0 && !forceShow) return '';
-        const displayValue = cleanList.length === 0 ? '<span style="color:#bbb;">—</span>' : cleanList.join(', ');
-        const labelWithIcon = icon ? `<span>${icon}</span> ${label}` : label;
-        if (pillType && cleanList.length > 0) {
-            const pills = cleanList.map(val => `<div class="pill pill-${pillType}">${val}</div>`).join('');
-            return `<div class="detail-row"><strong>${labelWithIcon}</strong><div class="pill-container">${pills}</div></div>`;
-        }
-        return `<div class="detail-row"><strong>${labelWithIcon}</strong><span>${displayValue}</span></div>`;
-    }
-
-    function createContactBlock(name, email, phone) {
-        const dName = decodeAndTrim(name);
-        if (!dName) return '';
-        return `<div class="contact-block"><strong>${dName}</strong>` +
-               (decodeAndTrim(email) ? `<a href="mailto:${decodeAndTrim(email)}" class="contact-link">${ICONS.MAIL} ${decodeAndTrim(email)}</a>` : '') +
-               (decodeAndTrim(phone) ? `<a href="tel:${decodeAndTrim(phone)}" class="contact-link">${ICONS.PHONE} ${decodeAndTrim(phone)}</a>` : '') +
-               `</div>`;
-    }
-
-    function escHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
-
-    function formatDateTime(d){
-        if(!d) return '';
-        var dt = new Date(d);
-        if(isNaN(dt)) return String(d);
-        return dt.toLocaleString('en-US', { month:'short', day:'numeric', year:'numeric', hour:'numeric', minute:'2-digit' });
-    }
-
-    function renderChangeLog(){
-        const el = document.getElementById('changeHistoryList');
-        if(!el) return;
-        const logs = Array.isArray(changeLog) ? changeLog.slice() : [];
-        if(!logs.length){ el.innerHTML = '<p style="color:var(--text-muted); font-size:13px; margin:4px 0;">No changes recorded yet.</p>'; return; }
-        logs.sort(function(a,b){ return new Date(b.Timestamp) - new Date(a.Timestamp); });
-        const groups = [];
-        logs.forEach(function(l){
-            const key = (l.Timestamp||'') + '|' + (l.ChangedBy||'');
-            let g = groups.find(function(x){ return x.key===key; });
-            if(!g){ g = { key:key, ts:l.Timestamp, by:l.ChangedBy, items:[] }; groups.push(g); }
-            g.items.push(l);
+    fill();
+    s.addEventListener('change',()=>{ values[def.key]=s.value; onChange(); });
+    if(def.optionsBy) rebuild = fill;
+    setFn = (val)=>{ val = val==null?'':String(val); values[def.key]=val;
+      if(val && !Array.prototype.some.call(s.options, o=>o.value===val)) s.appendChild(el('option',{value:val}, val));
+      s.value = val; };
+    wrap.appendChild(s);
+  } else if(def.type==='multiselect'){
+    if(!Array.isArray(values[def.key])) values[def.key]=[];
+    const box = el('div',{class:'checks'});
+    const buildChecks = ()=>{
+      const opts = (def.optionsBy ? def.optionsBy(values) : (def.options||[])).map(norm);
+      values[def.key] = (values[def.key]||[]).filter(v=> opts.some(o=>o.value===v)); // drop selections no longer valid
+      box.innerHTML='';
+      opts.forEach(o=>{
+        const lab = el('label',{class:'chk'});
+        const cb = el('input',{type:'checkbox',value:o.value});
+        if(values[def.key].indexOf(o.value)!==-1){ cb.checked=true; lab.classList.add('sel'); }
+        cb.addEventListener('change',()=>{
+          const arr = values[def.key];
+          if(cb.checked){ if(arr.indexOf(o.value)===-1) arr.push(o.value); lab.classList.add('sel'); }
+          else { values[def.key]=arr.filter(x=>x!==o.value); lab.classList.remove('sel'); }
+          onChange();
         });
-        el.innerHTML = groups.map(function(g){
-            const when = formatDateTime(g.ts);
-            const who = escHtml(String(g.by||'').trim() || 'Unknown');
-            const rows = g.items.map(function(it){
-                const f = escHtml(String(it.Field||'').trim());
-                const ov = String(it.OldValue||'').trim();
-                const nv = String(it.NewValue||'').trim();
-                return '<div style="font-size:13px; margin:4px 0; display:flex; gap:6px; flex-wrap:wrap; align-items:baseline;">' +
-                       '<span style="font-weight:700; min-width:130px;">' + f + '</span>' +
-                       '<span style="color:var(--danger,#c0392b); text-decoration:line-through; opacity:.85;">' + (ov ? escHtml(ov) : '<em>empty</em>') + '</span>' +
-                       '<span style="opacity:.6;">→</span>' +
-                       '<span style="color:var(--status-success,#2e7d32); font-weight:600;">' + (nv ? escHtml(nv) : '<em>empty</em>') + '</span>' +
-                       '</div>';
-            }).join('');
-            return '<div style="margin-bottom:14px; padding-bottom:10px; border-bottom:1px solid var(--border-color);">' +
-                   '<div style="display:flex; justify-content:space-between; gap:8px; font-size:12px; margin-bottom:6px; color:var(--text-muted); flex-wrap:wrap;">' +
-                   '<strong style="color:var(--text-main);">' + who + '</strong><span>' + when + '</span></div>' + rows + '</div>';
-        }).join('');
+        lab.appendChild(cb);
+        const txt = el('div'); txt.appendChild(document.createTextNode(o.label));
+        if(o.desc) txt.appendChild(el('div',{class:'chk-desc'}, o.desc));
+        lab.appendChild(txt);
+        box.appendChild(lab);
+      });
+    };
+    buildChecks();
+    if(def.optionsBy) rebuild = buildChecks;
+    setFn = (arr)=>{ values[def.key] = Array.isArray(arr)? arr.map(String) : []; buildChecks(); };
+    wrap.appendChild(box);
+  } else if(def.type==='textarea'){
+    const t = el('textarea',{id});
+    t.addEventListener('input',()=>{ values[def.key]=t.value; });
+    setFn = (val)=>{ val = val==null?'':String(val); values[def.key]=val; t.value=val; };
+    wrap.appendChild(t);
+  } else {
+    const inp = el('input',{id,type:def.type||'text'});
+    if(def.type==='number' && def.min!=null) inp.setAttribute('min', def.min);
+    inp.addEventListener('input',()=>{ values[def.key]=inp.value; });
+    setFn = (val)=>{ val = val==null?'':String(val); values[def.key]=val; inp.value=val; };
+    wrap.appendChild(inp);
+  }
+  wrap.appendChild(el('div',{class:'err'},'This field is required.'));
+  if(def.help) wrap.appendChild(el('div',{class:'help'}, def.help));
+  fieldEls[def.key]={wrap, def, rebuild, set:setFn};
+  return wrap;
+}
+
+function renderForm(){
+  form.appendChild(el('div',{class:'intro',id:'regionIntro',hidden:'hidden'}));
+  SECTIONS.forEach(sec=>{
+    const card = el('div',{class:'card'});
+    card.appendChild(el('h2',null, sec.title));
+    if(sec.note) card.appendChild(el('div',{class:'section-note'}, sec.note));
+    let rowBuf=[];
+    const flush=()=>{ if(rowBuf.length){ const r=el('div',{class:'row2'}); rowBuf.forEach(f=>r.appendChild(f)); card.appendChild(r); rowBuf=[]; } };
+    sec.fields.forEach(def=>{
+      const w = buildField(def);
+      if(def.half){ rowBuf.push(w); if(rowBuf.length===2) flush(); }
+      else { flush(); card.appendChild(w); }
+    });
+    flush();
+    form.appendChild(card);
+  });
+  const act = el('div',{class:'actions'});
+  act.appendChild(el('button',{type:'submit',class:'btn btn-primary',id:'submitBtn'}, EDIT_ID?'Save Changes':'Submit Request'));
+  act.appendChild(el('div',{class:'spin',id:'spin'}));
+  form.appendChild(act);
+}
+
+function visible(def){
+  if(def.regions && def.regions.indexOf(values["Region"])===-1) return false;
+  if(def.showIf && !def.showIf(values)) return false;
+  return true;
+}
+function updateRegionIntro(){
+  const box = document.getElementById('regionIntro'); if(!box) return;
+  const t = REGION_INTRO[values["Region"]];
+  if(t){ box.innerHTML = t; box.hidden = false; } else { box.innerHTML=''; box.hidden = true; }
+}
+function onChange(){
+  for(const key in fieldEls){ if(fieldEls[key].rebuild) fieldEls[key].rebuild(); }
+  for(const key in fieldEls){ fieldEls[key].wrap.hidden = !visible(fieldEls[key].def); }
+  updateRegionIntro();
+}
+
+function setErr(wrap, msg){ wrap.classList.add('invalid'); const e=wrap.querySelector('.err'); if(e&&msg) e.textContent=msg; }
+function validate(){
+  let ok=true, first=null;
+  for(const key in fieldEls){
+    const {wrap,def}=fieldEls[key];
+    wrap.classList.remove('invalid');
+    if(wrap.hidden) continue;
+    const v = values[key];
+    const empty = Array.isArray(v)? v.length===0 : !String(v==null?'':v).trim();
+    if(def.required && empty){ setErr(wrap,'This field is required.'); ok=false; first=first||wrap; continue; }
+    if(!empty && def.validate==='email' && !EMAIL_RE.test(String(v).trim())){ setErr(wrap,'Enter a valid email address.'); ok=false; first=first||wrap; continue; }
+    if(!empty && def.validate==='phone' && !validPhone(v)){ setErr(wrap,'Enter a valid North American phone number (10 digits).'); ok=false; first=first||wrap; continue; }
+    if(!empty && def.type==='number' && def.min!=null && Number(v)<def.min){ setErr(wrap,'Value must be at least '+def.min+'.'); ok=false; first=first||wrap; continue; }
+  }
+  if(first) first.scrollIntoView({behavior:'smooth',block:'center'});
+  return ok;
+}
+
+function buildPayload(){
+  const fr = { "Event Id": EDIT_ID || "", "Id": EDIT_ID? parseInt(EDIT_ID,10):0 };
+  for(const key in fieldEls){
+    const {wrap,def}=fieldEls[key];
+    let v = values[key];
+    if(wrap.hidden){ v = (def.type==='multiselect')? [] : ''; }
+    if(def.type==='multiselect'){ const a = Array.isArray(v)? v : []; fr[key] = def.join ? a.join(def.join) : a; }
+    else { fr[key] = v==null? '' : String(v); }
+  }
+  ARRAY_KEYS.forEach(k=>{ if(!(k in fr)) fr[k]=[]; });
+  return { FormResponse: fr };
+}
+
+async function submit(e){
+  e.preventDefault();
+  document.getElementById('errorBanner').classList.remove('show');
+  if(!validate()){ showError('Please fix the highlighted fields.'); return; }
+  if(FLOW_URL.indexOf('http')!==0){ showError('Form endpoint not configured yet — set FLOW_URL in index.html.'); return; }
+  const btn=document.getElementById('submitBtn'), spin=document.getElementById('spin');
+  btn.disabled=true; spin.style.display='inline-block';
+  try{
+    const r = await fetch(FLOW_URL, { method:'POST', body: JSON.stringify(buildPayload()) }); // text/plain => no CORS preflight
+    const txt = await r.text();
+    let data={}; try{ data=JSON.parse(txt); }catch(_){}
+    if(!r.ok) throw new Error('HTTP '+r.status+' '+txt.slice(0,200));
+    showSuccess(data);
+  }catch(err){ showError('Could not submit: '+err.message); btn.disabled=false; spin.style.display='none'; }
+}
+
+function showError(msg){ const b=document.getElementById('errorBanner'); b.textContent=msg; b.classList.add('show'); window.scrollTo({top:0,behavior:'smooth'}); }
+function showSuccess(data){
+  form.style.display='none';
+  const sp=document.getElementById('successPanel'); sp.style.display='block';
+  document.getElementById('successMsg').textContent = data.eventId ? ('Your request has been received (Event #'+data.eventId+') and is now in the approval workflow.') : 'Your request has been received and is now in the approval workflow.';
+  const link=document.getElementById('dashLink');
+  if(data.dashboardUrl){ link.href=data.dashboardUrl; } else { link.style.display='none'; }
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+// ---- edit prefill (fetch existing event from the Dashboard flow) ----
+function dec(v){ if(v==null) return ''; try{ return decodeURIComponent(String(v)).replace(/\+/g,' '); }catch(e){ return String(v); } }
+function splitDelimited(s){ s=dec(s).replace(/^[-–—]\s*/,''); var p=s.split(/\s+[-–—]\s+/).map(x=>x.trim()).filter(Boolean); return p.length?p:(s?[s]:[]); }
+function parseMulti(data){ if(data==null||data===''||data==='[]') return []; try{ var p=typeof data==='string'?JSON.parse(data):data; if(Array.isArray(p)){ var out=[]; p.forEach(it=>{ out=out.concat(splitDelimited(it&&it.Value!=null?it.Value:it)); }); return out; } }catch(e){} return splitDelimited(data); }
+// dashboard eventData key -> {form key, decode?, kind}
+const PREFILL_MAP = {
+  "Event Title":{k:"Event Title",dec:1}, "Event Type":{k:"Event Type"}, "Event Description":{k:"Event Description",dec:1},
+  "Event Start Date":{k:"Event Start Date",date:1}, "Start Time":{k:"Start Time",time:1}, "End Time":{k:"End Time",time:1},
+  "Recurring Event":{k:"Recurring Event"}, "Repeat Occurrences":{k:"Number Of Repeat Occurrences"}, "Virtually":{k:"Virtual Event"},
+  "Location":{k:"Event Location",multi:1}, "Venue Name":{k:"Venue Name",dec:1}, "Venue Address":{k:"Venue Address",dec:1},
+  "Notes on Conflict":{k:"Notes on Conflicts",dec:1}, "Board Portfolio":{k:"Responsible Board"},
+  "Area of Focus":{k:"Area of Focus",dec:1}, "Objective":{k:"Objective",dec:1},
+  "Collaborating Boards":{k:"Collaborating Boards",multi:1}, "Audience":{k:"Audience",multi:1},
+  "Target Segments":{k:"Target Segments",multi:1}, "Services Required":{k:"Services needed",multi:1},
+  "Room Booking":{k:"Room Booking",multi:1}, "Expected Attendees":{k:"Expected Number of Attendees"},
+  "Requester Name":{k:"Name",dec:1}, "Requester Email":{k:"Email Address",dec:1}, "Requester Phone":{k:"Phone Number",dec:1},
+  "Event Leads Summary":{k:"Event Leads",dec:1},
+  "Project Lead Name":{k:"Project Lead Name",dec:1}, "Project Lead Email":{k:"Project Lead Email",dec:1}, "Project Lead Phone":{k:"Project Lead Phone",dec:1},
+  "Day Lead Name":{k:"Day of Event Lead Name",dec:1}, "Day Lead Email":{k:"Day of Event Lead Email",dec:1}, "Day Lead Phone":{k:"Day of Event Lead Phone",dec:1},
+  "Serving Refreshments":{k:"Serving Refreshments"}, "Refreshment Details":{k:"Refreshment Details",dec:1},
+  "Ticketed Event":{k:"Ticketed Event"}, "Ticket Price":{k:"Ticket Price",dec:1},
+  "Has Budget":{k:"Has Budget"}, "Cost Breakdown":{k:"Cost Breakdown",dec:1}
+};
+function setField(k,val){ const fe=fieldEls[k]; if(fe && fe.set) fe.set(val); }
+async function prefillFromDashboard(){
+  if(DASHBOARD_URL.indexOf('http')!==0){ showError('Cannot load event for editing — DASHBOARD_URL is not set in the form.'); return; }
+  const btn=document.getElementById('submitBtn'); if(btn){ btn.disabled=true; btn.textContent='Loading…'; }
+  try{
+    const sep=DASHBOARD_URL.indexOf('?')>-1?'&':'?';
+    const url=DASHBOARD_URL+sep+'eventid='+encodeURIComponent(EDIT_ID)+'&region='+encodeURIComponent(PRESET_REGION);
+    const r=await fetch(url); if(!r.ok) throw new Error('HTTP '+r.status);
+    const data=await r.json(); const ev=data.eventData||{};
+    if(PRESET_REGION) setField("Region", PRESET_REGION);
+    for(const src in PREFILL_MAP){ if(ev[src]==null) continue; const m=PREFILL_MAP[src]; if(!fieldEls[m.k]) continue;
+      let val=ev[src];
+      if(m.multi){ val=parseMulti(val); }
+      else if(m.single){ val=parseMulti(val)[0]||''; }
+      else { val=m.dec?dec(val):String(val); if(m.date){ const mm=String(val).match(/^\d{4}-\d{2}-\d{2}/); val=mm?mm[0]:val; } if(m.time){ val=String(val).trim().toLowerCase(); } }
+      setField(m.k, val);
     }
+    onChange();
+    if(btn){ btn.disabled=false; btn.textContent='Save Changes'; }
+  }catch(e){ showError('Could not load event #'+EDIT_ID+' for editing: '+e.message); if(btn){ btn.disabled=false; btn.textContent='Save Changes'; } }
+}
 
-    function render() {
-        const statusRaw = decodeAndTrim(eventData['Event Status']);
-        const statusLower = statusRaw.toLowerCase();
-        
-        const eventDate = new Date(eventData['Event Start Date']);
-        const today = new Date();
-        today.setHours(0,0,0,0);
-        const isPastDate = eventData['Event Start Date'] !== '' && eventDate < today;
-
-        const inProgress = ["new request", "primary approval requested", "final approval requested"].includes(statusLower);
-        const restricted = ["cancelled", "auto-cancelled", "auto cancelled", "rejected", "primary approval rejected", "final approval rejected"].some(s => statusLower.includes(s));
-        
-        const isLocked = inProgress || restricted || isPastDate;
-
-        let statusColor = 'var(--accent-secondary)';
-        if (restricted) statusColor = 'var(--status-error)';
-        else if (inProgress || statusLower.includes('pending')) statusColor = 'var(--status-pending)';
-        else if (statusLower === 'scheduled' || statusLower.includes('approved')) statusColor = 'var(--status-success)';
-
-        const badge = document.getElementById('headerBadge');
-        const banner = document.getElementById('statusBanner');
-        const btnEdit = document.getElementById('btnEdit');
-        const btnCancel = document.getElementById('btnCancelEvent');
-
-        badge.innerHTML = `${isLocked ? ICONS.LOCK : ICONS.CHECK} ${statusRaw.toUpperCase()}`;
-        badge.style.backgroundColor = statusColor;
-        badge.dataset.color = statusColor; // Store for dark mode toggle
-        document.getElementById('mainStickyHeader').style.borderBottomColor = statusColor;
-        banner.style.backgroundColor = statusColor;
-
-        if (isLocked) {
-            banner.innerHTML = `${ICONS.LOCK} UPDATES RESTRICTED: CHANGES LOCKED FOR APPROVAL, PAST, CANCELLED AND REJECTED EVENTS`;
-            btnEdit.disabled = btnCancel.disabled = true;
-            btnEdit.innerHTML = `${ICONS.LOCK} Edit Locked`; 
-            btnCancel.innerHTML = `${ICONS.LOCK} Cancel Locked`;
-            btnCancel.style.backgroundColor = '#ccc';
-            btnCancel.style.borderColor = '#ccc';
-        } else {
-            banner.innerHTML = `${ICONS.LIVE} EVENT ACTIVE: ALL CONTROLS ENABLED`;
-            btnEdit.disabled = btnCancel.disabled = false;
-            btnEdit.innerHTML = `${ICONS.EDIT} Edit Details`; 
-            btnCancel.innerHTML = `${ICONS.CANCEL} Cancel Event`;
-            
-            btnEdit.onclick = () => openModal(
-                "Edit Event Confirmation", 
-                "<strong>Edit Event</strong> will add a New Event and will go through Approval Workflow. <br><br>You will need to <strong>cancel this current request</strong> after adding the New request.", 
-                "Proceed to Edit", 
-                "btn-primary", 
-                () => triggerFlowAction('event', 'edit')
-            );
-            
-            btnCancel.onclick = () => openModal(
-                "Cancel Event Request", 
-                "Are you sure you want to cancel this event request? <br><br>Once Cancelled, you will need to <strong>Re-submit</strong> the event and this current event entry cannot be reused.", 
-                "Confirm Cancel", 
-                "btn-cancel", 
-                () => triggerFlowAction('event', 'cancel')
-            );
-        }
-
-        const eLoc = parseMultiSelect(eventData['Location']).join(', ');
-        const eRoom = parseMultiSelect(eventData['Room Booking']).join(', ');
-        const vName = decodeAndTrim(eventData['Venue Name']);
-        const vAddr = decodeAndTrim(eventData['Venue Address']);
-        let fullVenue = vName;
-        if(vName && vAddr) fullVenue = `${vName} (${vAddr})`;
-        else if(vAddr) fullVenue = vAddr;
-
-        document.getElementById('eventTitleDisplay').textContent = `#${eventData['Event ID']} ${decodeAndTrim(eventData['Board Portfolio'])} ${eLoc ? '- '+eLoc : ''} ${eRoom ? '('+eRoom+')' : ''} - ${decodeAndTrim(eventData['Event Title'])}`;
-
-        document.getElementById('overviewDetails').innerHTML = 
-            createDetailRow('Event ID', eventData['Event ID'], null, '🆔', true) +
-            createDetailRow('Event Type', decodeAndTrim(eventData['Event Type']), null, '🏷️', true) +
-            createDetailRow('Schedule', `${formatDate(eventData['Event Start Date'])} | ${decodeAndTrim(eventData['Start Time'])} - ${decodeAndTrim(eventData['End Time'])}`, null, ICONS.CAL, true) +
-            createDetailRow('Recurring', (function(){ var r=decodeAndTrim(eventData['Recurring Event']); if(!r||r==='None') return 'None'; var o=decodeAndTrim(eventData['Repeat Occurrences']); return r + (o ? ' ('+o+' occurrences)' : ''); })(), null, '🔁', true) +
-            createDetailRow('Virtually', decodeAndTrim(eventData['Virtually']), null, ICONS.VIRTUAL, true) +
-            createDetailRow('Location', parseMultiSelect(eventData['Location']), 'rooms', ICONS.PIN, true) +
-            createDetailRow('Venue Info', fullVenue, null, '🏛️', true) +
-            createDetailRow('Room Booking', parseMultiSelect(eventData['Room Booking']), 'rooms', '🏢', true);
-
-        const desc = decodeAndTrim(eventData['Event Description']);
-        const descEl = document.getElementById('eventDescriptionDisplay');
-        if (desc) descEl.textContent = desc;
-        else descEl.innerHTML = '<span style="color:#999; font-style:italic;">No description provided.</span>';
-
-        const selectedServicesList = parseMultiSelect(eventData['Services Required']);
-        document.getElementById('scopeDetails').innerHTML = 
-            createDetailRow('Responsible Board', decodeAndTrim(eventData['Board Portfolio']), null, '💼', true) +
-            createDetailRow('Area of Focus', decodeAndTrim(eventData['Area of Focus']), null, '🔭', true) +
-            createDetailRow('Collaborating Boards', parseMultiSelect(eventData['Collaborating Boards']), 'collab', '🤝', true) +
-            createDetailRow('Objective', decodeAndTrim(eventData['Objective']), null, '💡', true) +
-            createDetailRow('Audience', parseMultiSelect(eventData['Audience']), 'audience', '👥', true) + 
-            createDetailRow('Target Segments', parseMultiSelect(eventData['Target Segments']), 'segments', '🎯', true) +
-            createDetailRow('Expected Attendees', decodeAndTrim(eventData['Expected Attendees']), null, '📈', true) +
-            createDetailRow('Refreshments', (function(){ var s=decodeAndTrim(eventData['Serving Refreshments']); if(s!=='Yes') return s||'No'; var d=decodeAndTrim(eventData['Refreshment Details']); return 'Yes'+(d? ' — '+d : ''); })(), null, '🍽️', true) +
-            createDetailRow('Tickets', (function(){ var t=decodeAndTrim(eventData['Ticketed Event']); if(!t||t==='No') return t||'No'; var p=decodeAndTrim(eventData['Ticket Price']); return t+(p? ' — '+p : ''); })(), null, '🎫', true) +
-            createDetailRow('Notes on Conflict', decodeAndTrim(eventData['Notes on Conflict']), null, '⚠️', true) +
-            createDetailRow('Services Selected', selectedServicesList, 'service', '⚙️', true);
-
-        let sHTML = '';
-        Object.keys(serviceStatuses).forEach(name => {
-            const s = serviceStatuses[name];
-            const stat = s.status.trim();
-            const low = stat.toLowerCase();
-            let bCol = 'var(--border-color)', icon = ICONS.WAIT, btns = '';
-
-            if (low === 'completed') { bCol = 'var(--status-success)'; icon = ICONS.CHECK; }
-            else if (['pending', 'in process'].includes(low)) { bCol = 'var(--status-pending)'; icon = ICONS.WAIT; }
-            else if (low.includes('cancelled')) { bCol = 'var(--status-error)'; icon = ICONS.CANCEL; }
-            else if (low === 'not supported') { bCol = '#94a3b8'; icon = '🚫'; }
-
-            if (low === 'not supported') {
-                btns = `<em style="font-size:10px; color:#999;">Service logging unavailable</em>`;
-            } else if (low === 'not requested' || low.includes('cancelled') || stat === '') {
-                btns = `<button class="btn btn-add" ${isLocked ? 'disabled' : ''} onclick="triggerFlowAction('${s.type}', 'add')">${ICONS.PLUS} Add</button>`;
-            } else if (low === 'in process') {
-                const rMsg = "An email reminder will be sent to Service Approvers for <strong>" + name + "</strong>. Proceed?";
-                btns = `<button class="btn btn-reminder" ${isLocked ? 'disabled' : ''} onclick="openModal('Send Reminder', '${rMsg}', 'Send Now', 'btn-reminder', () => triggerFlowAction('${s.type}', 'reminder'))">${ICONS.BELL} Send Reminder</button>` +
-                        `<button class="btn btn-cancel-outline" ${isLocked ? 'disabled' : ''} onclick="openModal('Cancel','Cancel ${name}?','Confirm','btn-cancel',()=>triggerFlowAction('${s.type}','cancel'))">${ICONS.CANCEL} Cancel</button>`;
-            } else if (low.includes('completed') && (s.type === 'AV' || s.type === 'IV')) {
-                btns = `<button class="btn btn-primary" ${isLocked ? 'disabled' : ''} onclick="openModal('Edit ${name} Confirmation', '<strong>Edit ${name} Service Request</strong> will add a New Request and will go through Approval Workflow. <br><br>You will need to <strong>cancel this current request</strong> after adding the New request.', 'Proceed to Edit', 'btn-primary', () => triggerFlowAction('${s.type}', 'edit'))">${ICONS.EDIT} Edit Request</button>` +
-                    `<button class="btn btn-cancel-outline" ${isLocked ? 'disabled' : ''} onclick="openModal('Cancel','Cancel ${name}?','Confirm','btn-cancel',()=>triggerFlowAction('${s.type}','cancel'))">${ICONS.CANCEL} Cancel</button>`;
-            } else {
-                btns = `<button class="btn btn-primary" ${isLocked ? 'disabled' : ''} onclick="triggerFlowAction('${s.type}', 'open')">${ICONS.OPEN} Open Form</button>` +
-                        `<button class="btn btn-cancel-outline" ${isLocked ? 'disabled' : ''} onclick="openModal('Cancel','Cancel ${name}?','Confirm','btn-cancel',()=>triggerFlowAction('${s.type}','cancel'))">${ICONS.CANCEL} Cancel</button>`;
-            }
-
-            sHTML += `<div class="service-card" style="border-left-color:${bCol}">
-                ${isLocked ? `<div class="card-lock-overlay">${ICONS.LOCK}</div>` : ''}
-                <div><h4 style="margin:0; font-size:12px;">${name}</h4>
-                <p style="margin:4px 0; font-size:11px; font-weight:700; color:${bCol==='var(--border-color)'?'var(--text-muted)':bCol};">${icon} ${stat}</p></div>
-                <div style="display:flex; flex-direction:column; gap:4px; margin-top:8px;">${btns}</div>
-            </div>`;
-        });
-        document.getElementById('servicesRequiredGrid').innerHTML = sHTML;
-
-        document.getElementById('requesterDetails').innerHTML = `<strong style="font-size:12px; color:var(--text-muted); text-transform:uppercase; margin-bottom:8px; display:flex; align-items:center; gap:5px; letter-spacing:0.5px;"><span>👤</span> Requester</strong>` + createContactBlock(eventData['Requester Name'], eventData['Requester Email'], eventData['Requester Phone']);
-        document.getElementById('leadsDetails').innerHTML = createDetailRow('Leads Info', decodeAndTrim(eventData['Event Leads Summary']), null, '📢', true) + `<div style="margin-top:15px;"><strong style="font-size:12px; color:var(--text-muted); text-transform:uppercase; margin-bottom:8px; display:flex; align-items:center; gap:5px; letter-spacing:0.5px;"><span>⭐</span> Project Lead</strong>` + createContactBlock(eventData['Project Lead Name'], eventData['Project Lead Email'], eventData['Project Lead Phone']) + `<strong style="font-size:12px; color:var(--text-muted); text-transform:uppercase; margin-top:15px; margin-bottom:8px; display:flex; align-items:center; gap:5px; letter-spacing:0.5px;"><span>🏃</span> Day Lead</strong>` + createContactBlock(eventData['Day Lead Name'], eventData['Day Lead Email'], eventData['Day Lead Phone']) + `</div>`;
-
-        renderChangeLog();
-
-        setTimeout(() => document.body.style.opacity = '1', 100);
-    }
-
-    async function boot(){
-        if (DASHBOARD_URL.indexOf('http') !== 0) {
-            document.body.innerHTML = '<div style="padding:24px;font-family:sans-serif"><h3>Setup needed</h3><p>Set <b>DASHBOARD_URL</b> in index.html to the GET URL of the National Event Dashboard flow.</p></div>';
-            document.body.style.opacity='1'; return;
-        }
-        try {
-            const sep = DASHBOARD_URL.indexOf('?') > -1 ? '&' : '?';
-            const url = DASHBOARD_URL + sep + 'eventid=' + encodeURIComponent(EVENT_CTX.id) + '&region=' + encodeURIComponent(EVENT_CTX.region);
-            const r = await fetch(url);
-            if (!r.ok) throw new Error('HTTP ' + r.status);
-            const data = await r.json();
-            eventData = data.eventData || {};
-            serviceStatuses = data.serviceStatuses || {};
-            changeLog = data.changeLog || [];
-            render();
-        } catch (e) {
-            document.body.innerHTML = '<div style="padding:24px;font-family:sans-serif"><h3>Could not load this event</h3><p style="color:#666">' + e + '</p><p style="color:#999">Check the link parameters (eventid, site, list) and that the dashboard flow is on.</p></div>';
-            document.body.style.opacity='1';
-        }
-    }
-    document.addEventListener('DOMContentLoaded', boot);
+renderForm();
+if(EDIT_ID){ document.getElementById('formTitle').textContent='Edit Event Request';
+  document.getElementById('formSub').textContent='Editing event #'+EDIT_ID+'. Material changes (date, time, location, etc.) will re-enter approval.'; }
+if(PRESET_REGION){ setField("Region", PRESET_REGION); }
+onChange();
+form.addEventListener('submit', submit);
+if(EDIT_ID) prefillFromDashboard();
 </script>
 </body>
 </html>
