@@ -242,6 +242,14 @@
         OPEN: '🔗', MAIL: '✉️', PHONE: '📞', PIN: '📍', CAL: '📅', VIRTUAL: '💻', PLUS: '➕', LIVE: '🟢', BELL: '🔔' 
     };
 
+    function showToast(msg){
+        var t=document.getElementById('_toast');
+        if(!t){ t=document.createElement('div'); t.id='_toast';
+            t.style.cssText='position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#2c3e50;color:#fff;padding:12px 20px;border-radius:8px;font-size:14px;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,.25);';
+            document.body.appendChild(t); }
+        t.textContent=msg; t.style.display='block';
+    }
+
     function decodeAndTrim(v) {
         if (!v || v === 'undefined' || v === 'null' || v === '%20' || v === '') return '';
         try { return decodeURIComponent(String(v)).replace(/\+/g, ' ').trim(); } catch(e) { return String(v).trim(); }
@@ -322,6 +330,7 @@
         if (MANAGE_URL.indexOf('http') !== 0) { alert('Management endpoint not configured yet (MANAGE_URL). Wire it after import.'); return; }
         const spinner = document.getElementById('loadingSpinner');
         const isNewTabAction = ['edit', 'open'].includes(actionType);
+        const isReloadAction = ['add', 'cancel', 'reminder'].includes(actionType);
         let nw = isNewTabAction ? window.open('about:blank', '_blank') : null;
         spinner.style.display = 'block';
 
@@ -333,8 +342,12 @@
         .then(data => {
             const trimmedData = data.trim();
             if (isNewTabAction && nw) {
-                if (trimmedData.startsWith('http')) { nw.location.href = trimmedData; } 
+                if (trimmedData.startsWith('http')) { nw.location.href = trimmedData; }
                 else { nw.document.open(); nw.document.write(data); nw.document.close(); }
+            } else if (isReloadAction) {
+                // Service add/cancel/reminder: confirm briefly, then refresh the dashboard so statuses update
+                showToast(actionType === 'reminder' ? 'Reminder sent.' : 'Done — updating…');
+                setTimeout(() => window.location.reload(), 1100);
             } else if (trimmedData.startsWith('http')) {
                 window.location.href = trimmedData;
             } else {
@@ -342,7 +355,7 @@
             }
         })
         .catch(err => { if(nw) nw.close(); alert('Request failed.'); })
-        .finally(() => { spinner.style.display = 'none'; });
+        .finally(() => { if(!isReloadAction) spinner.style.display = 'none'; });
     }
 
     function createDetailRow(label, value, pillType = null, icon = '', forceShow = false) {
@@ -498,7 +511,16 @@
         if (desc) descEl.textContent = desc;
         else descEl.innerHTML = '<span style="color:#999; font-style:italic;">No description provided.</span>';
 
-        const selectedServicesList = parseMultiSelect(eventData['Services Required']);
+        // Derive the current services from live statuses so add/cancel is reflected:
+        // keep non-managed requested services, then add managed services (AV/IV/Comms) that are currently active.
+        let selectedServicesList = parseMultiSelect(eventData['Services Required']).filter(function(s){
+            var l = String(s).toLowerCase();
+            return !(l.indexOf('audio')>-1 || l.indexOf('commun')>-1 || l.indexOf('volunteer')>-1 || l.indexOf('ismaili')>-1);
+        });
+        Object.keys(serviceStatuses).forEach(function(name){
+            var st = String(serviceStatuses[name].status||'').toLowerCase();
+            if (st && st!=='not requested' && st!=='not supported' && st.indexOf('cancel')===-1) selectedServicesList.push(name);
+        });
         document.getElementById('scopeDetails').innerHTML = 
             createDetailRow('Responsible Board', decodeAndTrim(eventData['Board Portfolio']), null, '💼', true) +
             createDetailRow('Area of Focus', decodeAndTrim(eventData['Area of Focus']), null, '🔭', true) +
