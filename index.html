@@ -166,6 +166,7 @@
                 <button id="btnRefresh" class="toggle-dark" onclick="window.location.reload()" title="Reload Page"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10"></path></svg></button>
                 <button id="btnThemeToggle" class="toggle-dark" onclick="toggleDarkMode()" title="Toggle Dark Mode"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg></button>
                 <button id="btnEdit" class="btn btn-primary"></button>
+                <button id="btnDuplicate" class="btn btn-add" title="Create a new request from this one (e.g. a second date)"></button>
                 <button id="btnCancelEvent" class="btn btn-cancel"></button>
             </div>
         </div>
@@ -234,6 +235,7 @@
     const MANAGE_URL = "https://default98d027077ed646d2acf222ebdd2d5c.17.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/15/workflows/376521a97f7a46f6a3dd23a663b869ef/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=l4BxP4L8j2BFA-AmWL8MQFpKeN2PU8IGG7Y67prOJFQ";
     const _q = new URLSearchParams(location.search);
     const EVENT_CTX = { id: _q.get('eventid')||'', region: _q.get('r')||'' };
+    const FORM_PAGE_URL = "https://bccalendar.github.io/national-events/"; // web request form (for Duplicate)
     // Post-import: paste the GET (invoke) URL of the 'National - Event Dashboard' flow here.
     const DASHBOARD_URL = "https://default98d027077ed646d2acf222ebdd2d5c.17.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/26/workflows/4dc26a4bca92432bb847c47860e3667f/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=qlK5yTiztt4951SYCmr6KoomyqGe1HX5y1XWguGpyIA";
     const LOGO_LIGHT = "dark-logo.png";
@@ -490,6 +492,17 @@
                 "Confirm Cancel", 
                 "btn-cancel", 
                 () => triggerFlowAction('event', 'cancel')
+            );
+        }
+
+        // Duplicate is always available (even for locked/past events) — opens the web form as a NEW request pre-filled from this one
+        const btnDup = document.getElementById('btnDuplicate');
+        if (btnDup) {
+            btnDup.innerHTML = '&#10697; Duplicate';
+            btnDup.disabled = false;
+            btnDup.onclick = () => window.open(
+                FORM_PAGE_URL + (FORM_PAGE_URL.indexOf('?')>-1?'&':'?') + 'copyfrom=' + encodeURIComponent(EVENT_CTX.id) + '&region=' + encodeURIComponent(EVENT_CTX.region),
+                '_blank'
             );
         }
 
