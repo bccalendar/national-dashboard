@@ -33,8 +33,17 @@
   .region-pick label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--primary)}
   select,input[type=text]{width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:8px;background:var(--bg-card);color:var(--text-main);font-size:14px;font-family:inherit}
   .wrap{max-width:1000px;margin:18px auto;padding:0 16px 60px}
-  .toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:16px}
+  .toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:10px}
   .toolbar .search{flex:1;min-width:200px}
+  .filters{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:flex-end;margin-bottom:16px;padding:12px 14px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow)}
+  .fld{display:flex;flex-direction:column;gap:3px;min-width:140px;flex:1}
+  .fld label{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted)}
+  input[type=date]{width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg-card);color:var(--text-main);font-size:13px;font-family:inherit}
+  .btn-clear{align-self:flex-end;background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:8px;padding:9px 14px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit}
+  .btn-clear:hover{border-color:var(--primary);color:var(--primary)}
+  .btn-csv{background:var(--primary);color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;cursor:pointer;font-family:inherit;white-space:nowrap}
+  .btn-csv:hover{filter:brightness(1.08)}
+  .btn-csv:disabled{opacity:.5;cursor:not-allowed}
   .chips{display:flex;flex-wrap:wrap;gap:6px}
   .chip{border:1px solid var(--border);background:var(--bg-card);color:var(--text-main);border-radius:20px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer}
   .chip.on{background:var(--primary);color:#fff;border-color:var(--primary)}
@@ -87,7 +96,15 @@
   <div class="toolbar" id="toolbar" hidden>
     <div class="search"><input type="text" id="search" placeholder="Search by title, board or location…"></div>
     <div class="chips" id="statusChips"></div>
+    <button class="btn-csv" id="csvBtn" title="Download the events shown below as a spreadsheet (CSV)">⬇ Download CSV</button>
     <div class="count" id="count"></div>
+  </div>
+  <div class="filters" id="filters" hidden>
+    <div class="fld"><label for="fromDate">From date</label><input type="date" id="fromDate"></div>
+    <div class="fld"><label for="toDate">To date</label><input type="date" id="toDate"></div>
+    <div class="fld"><label for="boardSel">Board</label><select id="boardSel"><option value="">All boards</option></select></div>
+    <div class="fld"><label for="locSel">Location</label><select id="locSel"><option value="">All locations</option></select></div>
+    <button class="btn-clear" id="clearBtn" type="button">Clear filters</button>
   </div>
   <div id="content"><div class="state">Select a region to view its upcoming events.</div></div>
 </div>
@@ -95,7 +112,7 @@
 <script>
 /* ============================ CONFIG ============================ */
 // Paste the GET URL of the "NationalRegionEvents" flow here after importing the solution:
-const REGION_EVENTS_URL = "PASTE_NATIONAL_REGION_EVENTS_FLOW_URL_HERE";
+const REGION_EVENTS_URL = "https://default98d027077ed646d2acf222ebdd2d5c.17.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/19/workflows/4c79c444dc5c4cba973042e78e2402a8/triggers/manual/paths/invoke?api-version=1&sp=/triggers/manual/run&sv=1.0&sig=UdQ9vAkBUiR4e0pf8ngfI9PeRNZjzmnJFTBpUE6xiKg";
 // Per-event dashboard page (same repo):
 const EVENT_PAGE = "index.html";
 const REGIONS = ["All Canada","British Columbia","Edmonton","Toronto","Southwest Ontario","Northeast Ontario","All Ontario","Prairies","Quebec and Maritimes"];
@@ -113,7 +130,7 @@ const startRegion = q.get('r') || (function(){ try{return localStorage.getItem('
 if(startRegion && REGIONS.indexOf(startRegion)!==-1) sel.value = startRegion;
 sel.addEventListener('change', ()=>{ const r=sel.value; try{localStorage.setItem('ov_region',r)}catch(e){}
   const u=new URLSearchParams(location.search); if(r)u.set('r',r); else u.delete('r'); history.replaceState(null,'','?'+u.toString());
-  if(r) load(r); else { content.innerHTML='<div class="state">Select a region to view its upcoming events.</div>'; document.getElementById('toolbar').hidden=true; }
+  if(r) load(r); else { content.innerHTML='<div class="state">Select a region to view its upcoming events.</div>'; document.getElementById('toolbar').hidden=true; document.getElementById('filters').hidden=true; }
 });
 
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
@@ -137,6 +154,7 @@ function parseDate(d){ if(!d) return null; const m=String(d).match(/^(\d{4})-(\d
 
 async function load(region){
   document.getElementById('toolbar').hidden=true;
+  document.getElementById('filters').hidden=true;
   content.innerHTML='<div class="state"><div class="spinner"></div><div style="margin-top:10px;">Loading events for '+esc(region)+'…</div></div>';
   if(REGION_EVENTS_URL.indexOf('http')!==0){ content.innerHTML='<div class="state"><b>Setup needed</b><br>Set <code>REGION_EVENTS_URL</code> in overview.html to the GET URL of the NationalRegionEvents flow.</div>'; return; }
   try{
@@ -150,6 +168,7 @@ async function load(region){
       submissionType:e.submissionType, virtually:e.virtually
     }));
     activeStatus="All";
+    populateFilters();
     renderChips(); render();
   }catch(err){ content.innerHTML='<div class="state">Could not load events: '+esc(err.message)+'<br><span style="font-size:12px">Check the region link and that the NationalRegionEvents flow is on.</span></div>'; }
 }
@@ -162,14 +181,40 @@ function renderChips(){
   document.querySelectorAll('.chip').forEach(c=> c.addEventListener('click',()=>{ activeStatus=c.getAttribute('data-k'); renderChips(); render(); }));
 }
 
-function render(){
-  document.getElementById('toolbar').hidden=false;
+function populateFilters(){
+  // reset filter controls on each region load
+  document.getElementById('fromDate').value='';
+  document.getElementById('toDate').value='';
+  const boards=[...new Set(ALL.map(e=>e.board).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+  const locs=[...new Set(ALL.map(e=>e.location).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+  document.getElementById('boardSel').innerHTML='<option value="">All boards</option>'+boards.map(b=>`<option value="${esc(b)}">${esc(b)}</option>`).join('');
+  document.getElementById('locSel').innerHTML='<option value="">All locations</option>'+locs.map(l=>`<option value="${esc(l)}">${esc(l)}</option>`).join('');
+}
+
+// current filtered list — shared by render() and CSV export
+function filteredList(){
   const term=(document.getElementById('search').value||'').toLowerCase();
-  let list=ALL.filter(e=>{
+  const from=document.getElementById('fromDate').value; // yyyy-mm-dd or ''
+  const to=document.getElementById('toDate').value;
+  const board=document.getElementById('boardSel').value;
+  const loc=document.getElementById('locSel').value;
+  return ALL.filter(e=>{
     if(activeStatus!=='All' && statusClass(e.status)!==activeStatus) return false;
     if(term){ const hay=(e.title+' '+e.board+' '+e.location).toLowerCase(); if(hay.indexOf(term)===-1) return false; }
+    if(board && e.board!==board) return false;
+    if(loc && e.location!==loc) return false;
+    const dstr=(e.date||'').slice(0,10);
+    if(from && (!dstr || dstr<from)) return false;
+    if(to && (!dstr || dstr>to)) return false;
     return true;
   });
+}
+
+function render(){
+  document.getElementById('toolbar').hidden=false;
+  document.getElementById('filters').hidden=false;
+  let list=filteredList();
+  document.getElementById('csvBtn').disabled = list.length===0;
   document.getElementById('count').textContent = list.length+' event'+(list.length===1?'':'s');
   if(!list.length){ content.innerHTML='<div class="state">No matching upcoming events.</div>'; return; }
   // group by month
@@ -201,7 +246,42 @@ function render(){
   });
   content.innerHTML=html;
 }
+/* ============================ CSV EXPORT ============================ */
+function csvCell(v){
+  const s=String(v==null?'':v);
+  return /[",\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s;
+}
+function downloadCSV(){
+  const list=filteredList();
+  if(!list.length) return;
+  const cols=['Event ID','Title','Date','Start Time','End Time','Location','Board','Status','Submission Type','Virtual'];
+  const rows=list.map(e=>[
+    e.id, e.title, (e.date||'').slice(0,10), e.startTime, e.endTime,
+    e.location, e.board, e.status, e.submissionType,
+    String(e.virtually).toLowerCase()==='yes'?'Yes':(e.virtually||'')
+  ].map(csvCell).join(','));
+  const csv='﻿'+cols.map(csvCell).join(',')+'\n'+rows.join('\n');
+  const region=(sel.value||'events').replace(/[^\w]+/g,'_');
+  const stamp=new Date().toISOString().slice(0,10);
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=region+'_events_'+stamp+'.csv';
+  document.body.appendChild(a); a.click();
+  setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 0);
+}
+
 document.getElementById('search').addEventListener('input', render);
+['fromDate','toDate','boardSel','locSel'].forEach(id=> document.getElementById(id).addEventListener('change', render));
+document.getElementById('csvBtn').addEventListener('click', downloadCSV);
+document.getElementById('clearBtn').addEventListener('click', ()=>{
+  document.getElementById('search').value='';
+  document.getElementById('fromDate').value='';
+  document.getElementById('toDate').value='';
+  document.getElementById('boardSel').value='';
+  document.getElementById('locSel').value='';
+  activeStatus='All'; renderChips(); render();
+});
 
 // auto-load if region preset
 if(sel.value) load(sel.value);
