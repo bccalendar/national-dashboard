@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Regional Events Overview</title>
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="apple-touch-icon" href="favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg-page:#f9f9f9; --bg-card:#ffffff; --bg-header:#ffffff;
+    --primary:#990000; --text-main:#333333; --text-muted:#666666;
+    --border:#e5e5e5; --info:#009CA6; --radius:6px;
+    --ok:#009E49; --warn:#F59E0B; --danger:#DC3545; --muted:#6b7280; --collab:#2563eb;
+    --shadow:0 1px 2px rgba(0,0,0,.06);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg-page:#121212; --bg-card:#1e1e1e; --bg-header:#1e1e1e;
+      --text-main:#e0e0e0; --text-muted:#a0a0a0; --border:#333333;
+    }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'Open Sans',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;background:var(--bg-page);color:var(--text-main);line-height:1.45}
+  .top-bar{position:sticky;top:0;z-index:100;display:flex;align-items:center;flex-wrap:wrap;gap:14px 18px;background:var(--bg-header);border-bottom:4px solid var(--primary);padding:12px 24px;box-shadow:0 2px 6px rgba(0,0,0,.08)}
+  .top-bar img{width:140px;max-width:38vw;height:auto;flex:none}
+  .top-titles{min-width:0;flex:1}
+  h1{font-size:20px;margin:0;color:var(--text-main)}
+  .sub{color:var(--text-muted);font-size:12px;margin:2px 0 0}
+  .region-pick{display:flex;flex-direction:column;gap:3px;min-width:230px}
+  .region-pick label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--primary)}
+  select,input[type=text]{width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:8px;background:var(--bg-card);color:var(--text-main);font-size:14px;font-family:inherit}
+  .wrap{max-width:1000px;margin:18px auto;padding:0 16px 60px}
+  .toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:16px}
+  .toolbar .search{flex:1;min-width:200px}
+  .chips{display:flex;flex-wrap:wrap;gap:6px}
+  .chip{border:1px solid var(--border);background:var(--bg-card);color:var(--text-main);border-radius:20px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer}
+  .chip.on{background:var(--primary);color:#fff;border-color:var(--primary)}
+  .count{font-size:13px;color:var(--text-muted);margin-left:auto}
+  .month{font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin:18px 0 8px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+  .ev{display:flex;align-items:center;gap:14px;background:var(--bg-card);border:1px solid var(--border);border-left:4px solid var(--muted);border-radius:var(--radius);padding:12px 14px;margin-bottom:8px;box-shadow:var(--shadow);transition:box-shadow .15s,transform .15s}
+  .ev:hover{box-shadow:0 4px 12px rgba(0,0,0,.10);transform:translateY(-1px)}
+  .ev-date{flex:none;width:58px;text-align:center;border-right:1px solid var(--border);padding-right:12px}
+  .ev-date .d{font-size:22px;font-weight:800;line-height:1;color:var(--text-main)}
+  .ev-date .m{font-size:11px;font-weight:700;text-transform:uppercase;color:var(--primary)}
+  .ev-date .yr{font-size:10px;color:var(--text-muted)}
+  .ev-main{flex:1;min-width:0}
+  .ev-title{font-size:15px;font-weight:700;color:var(--text-main);margin:0 0 3px;word-break:break-word}
+  .ev-meta{font-size:12.5px;color:var(--text-muted);display:flex;flex-wrap:wrap;gap:4px 12px}
+  .ev-right{flex:none;display:flex;flex-direction:column;align-items:flex-end;gap:8px}
+  .badge{padding:4px 10px;border-radius:12px;font-size:11px;font-weight:700;color:#fff;white-space:nowrap;text-transform:uppercase}
+  .b-ok{background:var(--ok)} .b-warn{background:var(--warn)} .b-danger{background:var(--danger)} .b-muted{background:var(--muted)} .b-info{background:var(--info)}
+  .ev.s-ok{border-left-color:var(--ok)} .ev.s-warn{border-left-color:var(--warn)} .ev.s-danger{border-left-color:var(--danger)} .ev.s-info{border-left-color:var(--info)}
+  .view{background:var(--info);color:#fff;border:none;border-radius:6px;padding:7px 14px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;cursor:pointer;text-decoration:none;display:inline-block}
+  .view:hover{filter:brightness(1.06)}
+  .edit-tag{font-size:10px;font-weight:700;color:#fff;background:var(--collab);border-radius:4px;padding:2px 6px;text-transform:uppercase}
+  .state{padding:40px 20px;text-align:center;color:var(--text-muted)}
+  .spinner{display:inline-block;width:26px;height:26px;border:3px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:sp 1s linear infinite}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  @media(max-width:560px){
+    .ev{flex-wrap:wrap}
+    .ev-right{flex-direction:row;width:100%;justify-content:space-between;align-items:center}
+    .top-bar img{width:110px}
+    .region-pick{width:100%;min-width:0}
+  }
+</style>
+</head>
+<body>
+<header class="top-bar">
+  <picture>
+    <source srcset="light-logo.png" media="(prefers-color-scheme: dark)">
+    <img src="dark-logo.png" alt="the Ismaili Canada" onerror="this.style.display='none'">
+  </picture>
+  <div class="top-titles">
+    <h1>Regional Events Overview</h1>
+    <div class="sub">Upcoming events and their approval status</div>
+  </div>
+  <div class="region-pick">
+    <label for="regionSel">Region</label>
+    <select id="regionSel"></select>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="toolbar" id="toolbar" hidden>
+    <div class="search"><input type="text" id="search" placeholder="Search by title, board or location…"></div>
+    <div class="chips" id="statusChips"></div>
+    <div class="count" id="count"></div>
+  </div>
+  <div id="content"><div class="state">Select a region to view its upcoming events.</div></div>
+</div>
+
+<script>
+/* ============================ CONFIG ============================ */
+// Paste the GET URL of the "NationalRegionEvents" flow here after importing the solution:
+const REGION_EVENTS_URL = "PASTE_NATIONAL_REGION_EVENTS_FLOW_URL_HERE";
+// Per-event dashboard page (same repo):
+const EVENT_PAGE = "index.html";
+const REGIONS = ["All Canada","British Columbia","Edmonton","Toronto","Southwest Ontario","Northeast Ontario","All Ontario","Prairies","Quebec and Maritimes"];
+
+/* ============================ ENGINE ============================ */
+const q = new URLSearchParams(location.search);
+let ALL = [];               // all events for the region
+let activeStatus = "All";
+const sel = document.getElementById('regionSel');
+const content = document.getElementById('content');
+
+// build region dropdown
+sel.innerHTML = '<option value="">— Select region —</option>' + REGIONS.map(r=>`<option value="${r}">${r}</option>`).join('');
+const startRegion = q.get('r') || (function(){ try{return localStorage.getItem('ov_region')||''}catch(e){return ''} })();
+if(startRegion && REGIONS.indexOf(startRegion)!==-1) sel.value = startRegion;
+sel.addEventListener('change', ()=>{ const r=sel.value; try{localStorage.setItem('ov_region',r)}catch(e){}
+  const u=new URLSearchParams(location.search); if(r)u.set('r',r); else u.delete('r'); history.replaceState(null,'','?'+u.toString());
+  if(r) load(r); else { content.innerHTML='<div class="state">Select a region to view its upcoming events.</div>'; document.getElementById('toolbar').hidden=true; }
+});
+
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function dec(v){ if(v==null) return ''; try{ return decodeURIComponent(String(v)).replace(/\+/g,' '); }catch(e){ return String(v); } }
+function parseMulti(data){
+  if(data==null||data===''||data==='[]') return [];
+  try{ var p=typeof data==='string'?JSON.parse(data):data;
+    if(Array.isArray(p)) return p.map(it=> it&&it.Value!=null?it.Value:it).map(x=>dec(String(x)).replace(/^[-–—]\s*/,'')).filter(Boolean);
+  }catch(e){}
+  return dec(String(data)).split(/\s+[-–—]\s+/).map(x=>x.trim()).filter(Boolean);
+}
+function statusClass(st){
+  const s=(st||'').toLowerCase();
+  if(s.indexOf('reject')>-1||s.indexOf('declin')>-1||s.indexOf('cancel')>-1) return 'danger';
+  if(s.indexOf('pend')>-1||s.indexOf('await')>-1||s.indexOf('review')>-1||s.indexOf('submit')>-1) return 'warn';
+  if(s.indexOf('schedul')>-1||s.indexOf('approv')>-1||s.indexOf('complet')>-1||s.indexOf('confirm')>-1) return 'ok';
+  return 'muted';
+}
+const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function parseDate(d){ if(!d) return null; const m=String(d).match(/^(\d{4})-(\d{2})-(\d{2})/); if(!m) return null; return new Date(+m[1],+m[2]-1,+m[3]); }
+
+async function load(region){
+  document.getElementById('toolbar').hidden=true;
+  content.innerHTML='<div class="state"><div class="spinner"></div><div style="margin-top:10px;">Loading events for '+esc(region)+'…</div></div>';
+  if(REGION_EVENTS_URL.indexOf('http')!==0){ content.innerHTML='<div class="state"><b>Setup needed</b><br>Set <code>REGION_EVENTS_URL</code> in overview.html to the GET URL of the NationalRegionEvents flow.</div>'; return; }
+  try{
+    const sep=REGION_EVENTS_URL.indexOf('?')>-1?'&':'?';
+    const r=await fetch(REGION_EVENTS_URL+sep+'region='+encodeURIComponent(region));
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const data=await r.json();
+    ALL=(data.events||[]).map(e=>({
+      id:e.id, title:dec(e.title), date:e.date, startTime:e.startTime, endTime:e.endTime,
+      location:parseMulti(e.location).join(', '), board:dec(e.board), status:e.status||'—',
+      submissionType:e.submissionType, virtually:e.virtually
+    }));
+    activeStatus="All";
+    renderChips(); render();
+  }catch(err){ content.innerHTML='<div class="state">Could not load events: '+esc(err.message)+'<br><span style="font-size:12px">Check the region link and that the NationalRegionEvents flow is on.</span></div>'; }
+}
+
+function renderChips(){
+  const counts={}; ALL.forEach(e=>{ const c=statusClass(e.status); counts[c]=(counts[c]||0)+1; });
+  const defs=[["All","All",ALL.length],["ok","Approved/Scheduled",counts.ok||0],["warn","Pending",counts.warn||0],["danger","Rejected/Cancelled",counts.danger||0]];
+  document.getElementById('statusChips').innerHTML = defs.map(([k,lbl,n])=>
+    `<span class="chip${activeStatus===k?' on':''}" data-k="${k}">${lbl} (${n})</span>`).join('');
+  document.querySelectorAll('.chip').forEach(c=> c.addEventListener('click',()=>{ activeStatus=c.getAttribute('data-k'); renderChips(); render(); }));
+}
+
+function render(){
+  document.getElementById('toolbar').hidden=false;
+  const term=(document.getElementById('search').value||'').toLowerCase();
+  let list=ALL.filter(e=>{
+    if(activeStatus!=='All' && statusClass(e.status)!==activeStatus) return false;
+    if(term){ const hay=(e.title+' '+e.board+' '+e.location).toLowerCase(); if(hay.indexOf(term)===-1) return false; }
+    return true;
+  });
+  document.getElementById('count').textContent = list.length+' event'+(list.length===1?'':'s');
+  if(!list.length){ content.innerHTML='<div class="state">No matching upcoming events.</div>'; return; }
+  // group by month
+  let html='', lastKey='';
+  list.forEach(e=>{
+    const dt=parseDate(e.date);
+    const key = dt? (dt.getFullYear()+'-'+dt.getMonth()) : 'nd';
+    if(key!==lastKey){ lastKey=key; html+='<div class="month">'+(dt? (MON[dt.getMonth()]+' '+dt.getFullYear()):'Undated')+'</div>'; }
+    const sc=statusClass(e.status);
+    const badgeCls={ok:'b-ok',warn:'b-warn',danger:'b-danger',muted:'b-muted'}[sc];
+    const dd = dt? dt.getDate() : '—'; const mm = dt? MON[dt.getMonth()] : ''; const yy = dt? dt.getFullYear() : '';
+    const timeStr = [e.startTime,e.endTime].filter(Boolean).join(' – ');
+    const meta=[]; if(timeStr) meta.push('🕐 '+esc(timeStr));
+    if(String(e.virtually).toLowerCase()==='yes') meta.push('💻 Virtual'); else if(e.location) meta.push('📍 '+esc(e.location));
+    if(e.board) meta.push('💼 '+esc(e.board));
+    const editTag = String(e.submissionType||'').toLowerCase()==='edited' ? ' <span class="edit-tag">Edited</span>' : '';
+    const href = EVENT_PAGE+'?eventid='+encodeURIComponent(e.id)+'&r='+encodeURIComponent(sel.value);
+    html+=`<div class="ev s-${sc}">
+      <div class="ev-date"><div class="d">${dd}</div><div class="m">${mm}</div><div class="yr">${yy}</div></div>
+      <div class="ev-main">
+        <p class="ev-title">#${esc(e.id)} · ${esc(e.title)}${editTag}</p>
+        <div class="ev-meta">${meta.join('<span>·</span>')}</div>
+      </div>
+      <div class="ev-right">
+        <span class="badge ${badgeCls}">${esc(e.status)}</span>
+        <a class="view" href="${href}">View</a>
+      </div>
+    </div>`;
+  });
+  content.innerHTML=html;
+}
+document.getElementById('search').addEventListener('input', render);
+
+// auto-load if region preset
+if(sel.value) load(sel.value);
+</script>
+</body>
+</html>
