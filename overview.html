@@ -56,6 +56,9 @@
   .chip{border:1px solid var(--border);background:var(--bg-card);color:var(--text-main);border-radius:20px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer}
   .chip.on{background:var(--primary);color:#fff;border-color:var(--primary)}
   .count{font-size:13px;color:var(--text-muted);margin-left:auto}
+  .note{background:#fff8e1;border:1px solid #f0d78a;color:#7a5c00;border-radius:var(--radius);padding:9px 13px;font-size:12.5px;margin-bottom:12px}
+  @media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .note{background:#332b12;border-color:#5c4a1c;color:#e3c766}}
+  .recur-tag{font-size:10px;font-weight:700;color:#fff;background:var(--info);border-radius:4px;padding:2px 6px;text-transform:uppercase;margin-left:4px}
   .month{font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin:18px 0 8px;padding-bottom:6px;border-bottom:1px solid var(--border)}
   .ev{display:flex;align-items:center;gap:14px;background:var(--bg-card);border:1px solid var(--border);border-left:4px solid var(--muted);border-radius:var(--radius);padding:12px 14px;margin-bottom:8px;box-shadow:var(--shadow);transition:box-shadow .15s,transform .15s}
   .ev:hover{box-shadow:0 4px 12px rgba(0,0,0,.10);transform:translateY(-1px)}
@@ -136,6 +139,15 @@
     <div class="count" id="count"></div>
   </div>
   <div class="filters" id="filters" hidden>
+    <div class="fld"><label for="rangeSel">Time range</label><select id="rangeSel">
+      <option value="3m">Next 3 months</option>
+      <option value="6m">Next 6 months</option>
+      <option value="12m">Next 12 months</option>
+      <option value="p3m">Past 3 months</option>
+      <option value="p6m">Past 6 months</option>
+      <option value="p12m">Past 12 months</option>
+      <option value="custom">Custom range…</option>
+    </select></div>
     <div class="fld"><label for="fromDate">From date</label><input type="date" id="fromDate"></div>
     <div class="fld"><label for="toDate">To date</label><input type="date" id="toDate"></div>
     <div class="fld"><label for="boardSel">Board</label><select id="boardSel"><option value="">All boards</option></select></div>
@@ -146,6 +158,7 @@
     </div>
     <button class="btn-clear" id="clearBtn" type="button">Clear filters</button>
   </div>
+  <div class="note" id="note" hidden></div>
   <div id="content"><div class="state">Select a region to view its upcoming events.</div></div>
 </div>
 
@@ -156,6 +169,15 @@ const REGION_EVENTS_URL = "https://default98d027077ed646d2acf222ebdd2d5c.17.envi
 // Per-event dashboard page (same repo):
 const EVENT_PAGE = "index.html";
 const REGIONS = ["All Canada","British Columbia","Edmonton","Toronto","Southwest Ontario","Northeast Ontario","All Ontario","Prairies","Quebec and Maritimes"];
+const FETCH_LIMIT = 500;   // max events pulled per fetch; date window keeps result sets small
+const RANGES = {
+  '3m':  {months:3,  dir:'future'},
+  '6m':  {months:6,  dir:'future'},
+  '12m': {months:12, dir:'future'},
+  'p3m': {months:3,  dir:'past'},
+  'p6m': {months:6,  dir:'past'},
+  'p12m':{months:12, dir:'past'}
+};
 
 /* ============================ ENGINE ============================ */
 const q = new URLSearchParams(location.search);
@@ -163,6 +185,7 @@ let ALL = [];               // all events for the region
 let activeStatus = "All";
 let currentView = "list";   // "list" | "cal"
 let calYM = null;           // {y, m} month shown in calendar view
+let truncated = false;      // true if fetch hit FETCH_LIMIT
 const sel = document.getElementById('regionSel');
 const content = document.getElementById('content');
 
@@ -172,7 +195,7 @@ const startRegion = q.get('r') || (function(){ try{return localStorage.getItem('
 if(startRegion && REGIONS.indexOf(startRegion)!==-1) sel.value = startRegion;
 sel.addEventListener('change', ()=>{ const r=sel.value; try{localStorage.setItem('ov_region',r)}catch(e){}
   const u=new URLSearchParams(location.search); if(r)u.set('r',r); else u.delete('r'); history.replaceState(null,'','?'+u.toString());
-  if(r) load(r); else { content.innerHTML='<div class="state">Select a region to view its upcoming events.</div>'; document.getElementById('toolbar').hidden=true; document.getElementById('filters').hidden=true; }
+  if(r) load(r); else { content.innerHTML='<div class="state">Select a region to view its upcoming events.</div>'; document.getElementById('toolbar').hidden=true; document.getElementById('filters').hidden=true; document.getElementById('note').hidden=true; }
 });
 
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
@@ -193,27 +216,44 @@ function statusClass(st){
 }
 const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 function parseDate(d){ if(!d) return null; const m=String(d).match(/^(\d{4})-(\d{2})-(\d{2})/); if(!m) return null; return new Date(+m[1],+m[2]-1,+m[3]); }
+function fmt(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function yn(v){ const s=String(v==null?'':v).toLowerCase(); if(s==='yes'||s==='true'||s==='1') return 'Yes'; if(s==='no'||s==='false'||s==='0') return 'No'; return v||''; }
+// compute the {from,to} fetch window from the Time-range control
+function computeRange(){
+  const preset=document.getElementById('rangeSel').value;
+  if(preset==='custom'){ return {from:document.getElementById('fromDate').value||'', to:document.getElementById('toDate').value||''}; }
+  const r=RANGES[preset]||RANGES['3m']; const today=new Date(); today.setHours(0,0,0,0); const other=new Date(today);
+  if(r.dir==='future'){ other.setMonth(other.getMonth()+r.months); return {from:fmt(today), to:fmt(other)}; }
+  other.setMonth(other.getMonth()-r.months); return {from:fmt(other), to:fmt(today)};
+}
 
 async function load(region){
-  document.getElementById('toolbar').hidden=true;
-  document.getElementById('filters').hidden=true;
+  const range=computeRange();
+  // reflect the active window into the date inputs
+  document.getElementById('fromDate').value=range.from;
+  document.getElementById('toDate').value=range.to;
   content.innerHTML='<div class="state"><div class="spinner"></div><div style="margin-top:10px;">Loading events for '+esc(region)+'…</div></div>';
   if(REGION_EVENTS_URL.indexOf('http')!==0){ content.innerHTML='<div class="state"><b>Setup needed</b><br>Set <code>REGION_EVENTS_URL</code> in overview.html to the GET URL of the NationalRegionEvents flow.</div>'; return; }
   try{
     const sep=REGION_EVENTS_URL.indexOf('?')>-1?'&':'?';
-    const r=await fetch(REGION_EVENTS_URL+sep+'region='+encodeURIComponent(region));
+    let url=REGION_EVENTS_URL+sep+'region='+encodeURIComponent(region)+'&top='+FETCH_LIMIT;
+    if(range.from) url+='&from='+encodeURIComponent(range.from);
+    if(range.to)   url+='&to='+encodeURIComponent(range.to);
+    const r=await fetch(url);
     if(!r.ok) throw new Error('HTTP '+r.status);
     const data=await r.json();
     ALL=(data.events||[]).map(e=>{
       const locs=parseMulti(e.location);
-      return { id:e.id, title:dec(e.title), date:e.date, startTime:e.startTime, endTime:e.endTime,
-        location:locs.join(', '), locList:locs, board:dec(e.board), status:e.status||'—',
-        submissionType:e.submissionType, virtually:e.virtually };
+      return Object.assign({}, e, {
+        title:dec(e.title), location:locs.join(', '), locList:locs,
+        board:dec(e.board), status:e.status||'—'
+      });
     });
+    truncated = ALL.length >= FETCH_LIMIT;
     activeStatus="All"; calYM=null;
     populateFilters();
     renderChips(); render();
-  }catch(err){ content.innerHTML='<div class="state">Could not load events: '+esc(err.message)+'<br><span style="font-size:12px">Check the region link and that the NationalRegionEvents flow is on.</span></div>'; }
+  }catch(err){ content.innerHTML='<div class="state">Could not load events: '+esc(err.message)+'<br><span style="font-size:12px">Check the region link and that the NationalRegionEvents flow is on.</span></div>'; document.getElementById('note').hidden=true; }
 }
 
 function renderChips(){
@@ -226,9 +266,7 @@ function renderChips(){
 
 let selectedLocs = new Set();
 function populateFilters(){
-  // reset filter controls on each region load
-  document.getElementById('fromDate').value='';
-  document.getElementById('toDate').value='';
+  // reset filter controls on each region load (dates are managed by the Time-range window)
   selectedLocs = new Set();
   const boards=[...new Set(ALL.map(e=>e.board).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
   // distinct INDIVIDUAL locations across all events (split out combined values)
@@ -254,25 +292,28 @@ function updateLocBox(){
 
 // current filtered list — shared by render() and CSV export
 function filteredList(){
+  // NOTE: date window is applied server-side (via the flow's from/to params);
+  // the controls below filter within the fetched window.
   const term=(document.getElementById('search').value||'').toLowerCase();
-  const from=document.getElementById('fromDate').value; // yyyy-mm-dd or ''
-  const to=document.getElementById('toDate').value;
   const board=document.getElementById('boardSel').value;
   return ALL.filter(e=>{
     if(activeStatus!=='All' && statusClass(e.status)!==activeStatus) return false;
     if(term){ const hay=(e.title+' '+e.board+' '+e.location).toLowerCase(); if(hay.indexOf(term)===-1) return false; }
     if(board && e.board!==board) return false;
     if(selectedLocs.size){ const has=(e.locList||[]).some(l=>selectedLocs.has(l)); if(!has) return false; }
-    const dstr=(e.date||'').slice(0,10);
-    if(from && (!dstr || dstr<from)) return false;
-    if(to && (!dstr || dstr>to)) return false;
     return true;
   });
+}
+function showNote(){
+  const n=document.getElementById('note');
+  if(truncated){ n.hidden=false; n.innerHTML='⚠ Showing the first '+FETCH_LIMIT+' events for this window — narrow the <b>Time range</b> (or use a Custom range) to see the rest.'; }
+  else n.hidden=true;
 }
 
 function render(){
   document.getElementById('toolbar').hidden=false;
   document.getElementById('filters').hidden=false;
+  showNote();
   let list=filteredList();
   document.getElementById('csvBtn').disabled = list.length===0;
   document.getElementById('count').textContent = list.length+' event'+(list.length===1?'':'s');
@@ -292,11 +333,14 @@ function render(){
     if(String(e.virtually).toLowerCase()==='yes') meta.push('💻 Virtual'); else if(e.location) meta.push('📍 '+esc(e.location));
     if(e.board) meta.push('💼 '+esc(e.board));
     const editTag = String(e.submissionType||'').toLowerCase()==='edited' ? ' <span class="edit-tag">Edited</span>' : '';
+    const isRecur = yn(e.recurring)==='Yes';
+    const recurTag = isRecur ? ' <span class="recur-tag">🔁 Recurring</span>' : '';
+    if(isRecur && e.repeatOccurrences) meta.push('🔁 '+esc(e.repeatOccurrences));
     const href = EVENT_PAGE+'?eventid='+encodeURIComponent(e.id)+'&r='+encodeURIComponent(sel.value);
     html+=`<div class="ev s-${sc}">
       <div class="ev-date"><div class="d">${dd}</div><div class="m">${mm}</div><div class="yr">${yy}</div></div>
       <div class="ev-main">
-        <p class="ev-title">#${esc(e.id)} · ${esc(e.title)}${editTag}</p>
+        <p class="ev-title">#${esc(e.id)} · ${esc(e.title)}${recurTag}${editTag}</p>
         <div class="ev-meta">${meta.join('<span>·</span>')}</div>
       </div>
       <div class="ev-right">
@@ -334,8 +378,10 @@ function renderCalendar(list){
     let inner=`<div class="cal-dnum">${d}</div>`;
     evs.slice(0,3).forEach(e=>{
       const sc=statusClass(e.status);
+      const isRecur = yn(e.recurring)==='Yes';
       const href=EVENT_PAGE+'?eventid='+encodeURIComponent(e.id)+'&r='+encodeURIComponent(sel.value);
-      inner+=`<a class="cal-ev s-${sc}" href="${href}" title="${esc('#'+e.id+' · '+e.title+' — '+e.status)}"><span class="ce-t">${esc(e.title)}</span></a>`;
+      const tip='#'+e.id+' · '+e.title+(isRecur?' (recurring)':'')+' — '+e.status;
+      inner+=`<a class="cal-ev s-${sc}" href="${href}" title="${esc(tip)}"><span class="ce-t">${isRecur?'🔁 ':''}${esc(e.title)}</span></a>`;
     });
     if(evs.length>3) inner+=`<div class="cal-more">+${evs.length-3} more</div>`;
     cells+=`<div class="cal-cell${isToday?' today':''}">${inner}</div>`;
@@ -356,15 +402,40 @@ function csvCell(v){
   const s=String(v==null?'':v);
   return /[",\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s;
 }
+// full detail columns: [header, accessor]
+const CSV_COLS=[
+  ['Event ID', e=>e.id],
+  ['Title', e=>e.title],
+  ['Date', e=>(e.date||'').slice(0,10)],
+  ['Start Time', e=>e.startTime],
+  ['End Time', e=>e.endTime],
+  ['Recurring', e=>yn(e.recurring)],
+  ['Repeat Occurrences', e=>e.repeatOccurrences],
+  ['Virtual', e=>yn(e.virtually)],
+  ['Location', e=>(e.locList||[]).join('; ')],
+  ['Room Booking', e=>parseMulti(e.roomBooking).join('; ')],
+  ['Board', e=>e.board],
+  ['Collaborating Boards', e=>parseMulti(e.collaboratingBoards).join('; ')],
+  ['Target Segments', e=>parseMulti(e.targetSegments).join('; ')],
+  ['Area of Focus', e=>e.areaOfFocus],
+  ['Objective', e=>e.objective],
+  ['Description', e=>e.description],
+  ['Expected Attendees', e=>e.expectedAttendees],
+  ['Status', e=>e.status],
+  ['Comms Status', e=>e.commsStatus],
+  ['AV Status', e=>e.avStatus],
+  ['IVC Status', e=>e.ivcStatus],
+  ['Submission Type', e=>e.submissionType],
+  ['Notes on Conflict', e=>e.notesOnConflict],
+  ['Requester Name', e=>e.requesterName],
+  ['Requester Email', e=>e.requesterEmail],
+  ['Requester Phone', e=>e.requesterPhone]
+];
 function downloadCSV(){
   const list=filteredList();
   if(!list.length) return;
-  const cols=['Event ID','Title','Date','Start Time','End Time','Location','Board','Status','Submission Type','Virtual'];
-  const rows=list.map(e=>[
-    e.id, e.title, (e.date||'').slice(0,10), e.startTime, e.endTime,
-    e.location, e.board, e.status, e.submissionType,
-    String(e.virtually).toLowerCase()==='yes'?'Yes':(e.virtually||'')
-  ].map(csvCell).join(','));
+  const cols=CSV_COLS.map(c=>c[0]);
+  const rows=list.map(e=> CSV_COLS.map(c=>csvCell(c[1](e))).join(','));
   const csv='﻿'+cols.map(csvCell).join(',')+'\n'+rows.join('\n');
   const region=(sel.value||'events').replace(/[^\w]+/g,'_');
   const stamp=new Date().toISOString().slice(0,10);
@@ -377,7 +448,14 @@ function downloadCSV(){
 }
 
 document.getElementById('search').addEventListener('input', render);
-['fromDate','toDate','boardSel'].forEach(id=> document.getElementById(id).addEventListener('change', ()=>{ calYM=null; render(); }));
+// board filter is client-side within the fetched window
+document.getElementById('boardSel').addEventListener('change', ()=>{ calYM=null; render(); });
+// Time range + custom dates change the fetch window -> re-call the flow
+document.getElementById('rangeSel').addEventListener('change', ()=>{ if(sel.value) load(sel.value); });
+['fromDate','toDate'].forEach(id=> document.getElementById(id).addEventListener('change', ()=>{
+  document.getElementById('rangeSel').value='custom';
+  if(sel.value) load(sel.value);
+}));
 // location multi-select open/close
 const locBox=document.getElementById('locBox'), locPanel=document.getElementById('locPanel');
 function toggleLocPanel(open){ locPanel.hidden = (open===undefined) ? !locPanel.hidden : !open; }
@@ -394,13 +472,13 @@ document.querySelectorAll('#vtoggle button').forEach(b=> b.addEventListener('cli
 document.getElementById('csvBtn').addEventListener('click', downloadCSV);
 document.getElementById('clearBtn').addEventListener('click', ()=>{
   document.getElementById('search').value='';
-  document.getElementById('fromDate').value='';
-  document.getElementById('toDate').value='';
   document.getElementById('boardSel').value='';
+  document.getElementById('rangeSel').value='3m';
   selectedLocs.clear();
   document.querySelectorAll('#locPanel input[type=checkbox]').forEach(cb=>cb.checked=false);
   updateLocBox();
-  activeStatus='All'; calYM=null; renderChips(); render();
+  activeStatus='All'; calYM=null;
+  if(sel.value) load(sel.value); else { renderChips(); render(); }
 });
 
 // auto-load if region preset
