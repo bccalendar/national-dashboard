@@ -68,11 +68,35 @@
   .state{padding:40px 20px;text-align:center;color:var(--text-muted)}
   .spinner{display:inline-block;width:26px;height:26px;border:3px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:sp 1s linear infinite}
   @keyframes sp{to{transform:rotate(360deg)}}
+  /* view toggle */
+  .vtoggle{display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden}
+  .vtoggle button{background:var(--bg-card);color:var(--text-muted);border:none;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit}
+  .vtoggle button.on{background:var(--primary);color:#fff}
+  /* calendar */
+  .cal-nav{display:flex;align-items:center;justify-content:center;gap:16px;margin:4px 0 12px}
+  .cal-nav button{background:var(--bg-card);border:1px solid var(--border);color:var(--text-main);border-radius:8px;width:34px;height:34px;font-size:16px;font-weight:700;cursor:pointer;font-family:inherit}
+  .cal-nav button:hover{border-color:var(--primary);color:var(--primary)}
+  .cal-nav .cal-title{font-size:16px;font-weight:800;min-width:150px;text-align:center}
+  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+  .cal-dow{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);text-align:center;padding:4px 0}
+  .cal-cell{min-height:96px;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:5px 6px;overflow:hidden}
+  .cal-cell.empty{background:transparent;border:none}
+  .cal-cell.today{border-color:var(--primary);box-shadow:0 0 0 1px var(--primary) inset}
+  .cal-dnum{font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:3px}
+  .cal-cell.today .cal-dnum{color:var(--primary)}
+  .cal-ev{display:block;font-size:11px;font-weight:600;color:#fff;border-radius:4px;padding:2px 5px;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-decoration:none;cursor:pointer}
+  .cal-ev.s-ok{background:var(--ok)} .cal-ev.s-warn{background:var(--warn)} .cal-ev.s-danger{background:var(--danger)} .cal-ev.s-muted{background:var(--muted)} .cal-ev.s-info{background:var(--info)}
+  .cal-more{font-size:10.5px;font-weight:700;color:var(--text-muted)}
   @media(max-width:560px){
     .ev{flex-wrap:wrap}
     .ev-right{flex-direction:row;width:100%;justify-content:space-between;align-items:center}
     .top-bar img{width:110px}
     .region-pick{width:100%;min-width:0}
+    .cal-grid{gap:3px}
+    .cal-cell{min-height:60px;padding:3px}
+    .cal-dow{font-size:9px}
+    .cal-ev{font-size:9px;padding:1px 3px}
+    .cal-ev .ce-t{display:none}
   }
 </style>
 </head>
@@ -96,6 +120,10 @@
   <div class="toolbar" id="toolbar" hidden>
     <div class="search"><input type="text" id="search" placeholder="Search by title, board or location…"></div>
     <div class="chips" id="statusChips"></div>
+    <div class="vtoggle" id="vtoggle">
+      <button data-v="list" class="on">☰ List</button>
+      <button data-v="cal">▦ Calendar</button>
+    </div>
     <button class="btn-csv" id="csvBtn" title="Download the events shown below as a spreadsheet (CSV)">⬇ Download CSV</button>
     <div class="count" id="count"></div>
   </div>
@@ -121,6 +149,8 @@ const REGIONS = ["All Canada","British Columbia","Edmonton","Toronto","Southwest
 const q = new URLSearchParams(location.search);
 let ALL = [];               // all events for the region
 let activeStatus = "All";
+let currentView = "list";   // "list" | "cal"
+let calYM = null;           // {y, m} month shown in calendar view
 const sel = document.getElementById('regionSel');
 const content = document.getElementById('content');
 
@@ -167,7 +197,7 @@ async function load(region){
       location:parseMulti(e.location).join(', '), board:dec(e.board), status:e.status||'—',
       submissionType:e.submissionType, virtually:e.virtually
     }));
-    activeStatus="All";
+    activeStatus="All"; calYM=null;
     populateFilters();
     renderChips(); render();
   }catch(err){ content.innerHTML='<div class="state">Could not load events: '+esc(err.message)+'<br><span style="font-size:12px">Check the region link and that the NationalRegionEvents flow is on.</span></div>'; }
@@ -178,7 +208,7 @@ function renderChips(){
   const defs=[["All","All",ALL.length],["ok","Approved/Scheduled",counts.ok||0],["warn","Pending",counts.warn||0],["danger","Rejected/Cancelled",counts.danger||0]];
   document.getElementById('statusChips').innerHTML = defs.map(([k,lbl,n])=>
     `<span class="chip${activeStatus===k?' on':''}" data-k="${k}">${lbl} (${n})</span>`).join('');
-  document.querySelectorAll('.chip').forEach(c=> c.addEventListener('click',()=>{ activeStatus=c.getAttribute('data-k'); renderChips(); render(); }));
+  document.querySelectorAll('.chip').forEach(c=> c.addEventListener('click',()=>{ activeStatus=c.getAttribute('data-k'); calYM=null; renderChips(); render(); }));
 }
 
 function populateFilters(){
@@ -216,6 +246,7 @@ function render(){
   let list=filteredList();
   document.getElementById('csvBtn').disabled = list.length===0;
   document.getElementById('count').textContent = list.length+' event'+(list.length===1?'':'s');
+  if(currentView==='cal'){ renderCalendar(list); return; }
   if(!list.length){ content.innerHTML='<div class="state">No matching upcoming events.</div>'; return; }
   // group by month
   let html='', lastKey='';
@@ -246,6 +277,50 @@ function render(){
   });
   content.innerHTML=html;
 }
+
+/* ============================ CALENDAR VIEW ============================ */
+const DOW=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+function renderCalendar(list){
+  // choose which month to show
+  if(!calYM){
+    const dated=list.map(e=>parseDate(e.date)).filter(Boolean).sort((a,b)=>a-b);
+    const base = dated.length ? dated[0] : new Date();
+    calYM={y:base.getFullYear(), m:base.getMonth()};
+  }
+  const y=calYM.y, m=calYM.m;
+  // bucket events of this month by day
+  const byDay={};
+  list.forEach(e=>{ const dt=parseDate(e.date); if(dt && dt.getFullYear()===y && dt.getMonth()===m){ (byDay[dt.getDate()]=byDay[dt.getDate()]||[]).push(e); } });
+  const inMonth=Object.values(byDay).reduce((n,a)=>n+a.length,0);
+  const today=new Date(); const isThisMonth = today.getFullYear()===y && today.getMonth()===m;
+  const first=new Date(y,m,1).getDay();       // 0=Sun
+  const days=new Date(y,m+1,0).getDate();     // days in month
+  let cells='';
+  DOW.forEach(d=> cells+=`<div class="cal-dow">${d}</div>`);
+  for(let i=0;i<first;i++) cells+='<div class="cal-cell empty"></div>';
+  for(let d=1;d<=days;d++){
+    const evs=(byDay[d]||[]);
+    const isToday = isThisMonth && today.getDate()===d;
+    let inner=`<div class="cal-dnum">${d}</div>`;
+    evs.slice(0,3).forEach(e=>{
+      const sc=statusClass(e.status);
+      const href=EVENT_PAGE+'?eventid='+encodeURIComponent(e.id)+'&r='+encodeURIComponent(sel.value);
+      inner+=`<a class="cal-ev s-${sc}" href="${href}" title="${esc('#'+e.id+' · '+e.title+' — '+e.status)}"><span class="ce-t">${esc(e.title)}</span></a>`;
+    });
+    if(evs.length>3) inner+=`<div class="cal-more">+${evs.length-3} more</div>`;
+    cells+=`<div class="cal-cell${isToday?' today':''}">${inner}</div>`;
+  }
+  content.innerHTML=
+    `<div class="cal-nav">
+       <button id="calPrev" title="Previous month">‹</button>
+       <div class="cal-title">${MON[m]} ${y}</div>
+       <button id="calNext" title="Next month">›</button>
+     </div>
+     ${inMonth?'':'<div class="state" style="padding:14px">No matching events in this month — use ‹ › to browse other months.</div>'}
+     <div class="cal-grid">${cells}</div>`;
+  document.getElementById('calPrev').addEventListener('click',()=>{ calYM = m===0?{y:y-1,m:11}:{y,m:m-1}; renderCalendar(filteredList()); });
+  document.getElementById('calNext').addEventListener('click',()=>{ calYM = m===11?{y:y+1,m:0}:{y,m:m+1}; renderCalendar(filteredList()); });
+}
 /* ============================ CSV EXPORT ============================ */
 function csvCell(v){
   const s=String(v==null?'':v);
@@ -272,7 +347,13 @@ function downloadCSV(){
 }
 
 document.getElementById('search').addEventListener('input', render);
-['fromDate','toDate','boardSel','locSel'].forEach(id=> document.getElementById(id).addEventListener('change', render));
+['fromDate','toDate','boardSel','locSel'].forEach(id=> document.getElementById(id).addEventListener('change', ()=>{ calYM=null; render(); }));
+document.querySelectorAll('#vtoggle button').forEach(b=> b.addEventListener('click',()=>{
+  currentView=b.getAttribute('data-v');
+  document.querySelectorAll('#vtoggle button').forEach(x=>x.classList.toggle('on', x===b));
+  if(currentView==='cal') calYM=null; // recenter on first event month when entering calendar
+  render();
+}));
 document.getElementById('csvBtn').addEventListener('click', downloadCSV);
 document.getElementById('clearBtn').addEventListener('click', ()=>{
   document.getElementById('search').value='';
