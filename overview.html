@@ -169,7 +169,8 @@ const REGION_EVENTS_URL = "https://default98d027077ed646d2acf222ebdd2d5c.17.envi
 // Per-event dashboard page (same repo):
 const EVENT_PAGE = "index.html";
 const REGIONS = ["All Canada","British Columbia","Edmonton","Toronto","Southwest Ontario","Northeast Ontario","All Ontario","Prairies","Quebec and Maritimes"];
-const FETCH_LIMIT = 500;   // max events pulled per fetch; date window keeps result sets small
+const FETCH_LIMIT = 500;    // page size hint sent to the flow (it auto-pages beyond this)
+const PAGE_CEILING = 5000;  // flow's safety cap; only past this do we ask to narrow the window
 const RANGES = {
   '3m':  {months:3,  dir:'future'},
   '6m':  {months:6,  dir:'future'},
@@ -249,7 +250,7 @@ async function load(region){
         board:dec(e.board), status:e.status||'—'
       });
     });
-    truncated = ALL.length >= FETCH_LIMIT;
+    truncated = ALL.length >= (data.ceiling || PAGE_CEILING);
     activeStatus="All"; calYM=null;
     populateFilters();
     renderChips(); render();
@@ -306,7 +307,7 @@ function filteredList(){
 }
 function showNote(){
   const n=document.getElementById('note');
-  if(truncated){ n.hidden=false; n.innerHTML='⚠ Showing the first '+FETCH_LIMIT+' events for this window — narrow the <b>Time range</b> (or use a Custom range) to see the rest.'; }
+  if(truncated){ n.hidden=false; n.innerHTML='⚠ This window returned the maximum of '+PAGE_CEILING+' events — narrow the <b>Time range</b> (or use a Custom range) to see the rest.'; }
   else n.hidden=true;
 }
 
