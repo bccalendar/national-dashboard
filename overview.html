@@ -10,6 +10,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js"></script>
 <style>
   :root{
     --bg-page:#f9f9f9; --bg-card:#ffffff; --bg-header:#ffffff;
@@ -118,6 +120,28 @@
     .cal-ev{font-size:9px;padding:1px 3px}
     .cal-ev .ce-t{display:none}
   }
+  /* ============================ BI DASHBOARD ============================ */
+  .bi-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px}
+  .kpi{background:var(--bg-card);border:1px solid var(--border);border-left:4px solid var(--primary);border-radius:var(--radius);padding:12px 14px;box-shadow:var(--shadow)}
+  .kpi .k-val{font-size:26px;font-weight:800;line-height:1.05;color:var(--text-main);letter-spacing:-.5px}
+  .kpi .k-lbl{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);margin-top:4px}
+  .kpi .k-sub{font-size:11px;color:var(--text-muted);margin-top:2px}
+  .kpi.k-ok{border-left-color:var(--ok)} .kpi.k-warn{border-left-color:var(--warn)} .kpi.k-danger{border-left-color:var(--danger)} .kpi.k-info{border-left-color:var(--info)} .kpi.k-collab{border-left-color:var(--collab)}
+  .bi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px}
+  .bi-panel{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px 14px;box-shadow:var(--shadow);min-width:0}
+  .bi-panel.span2{grid-column:1/-1}
+  .bi-panel h3{font-size:13px;font-weight:800;margin:0 0 2px;color:var(--text-main)}
+  .bi-panel .p-sub{font-size:11px;color:var(--text-muted);margin:0 0 10px}
+  .bi-canvas-box{position:relative;height:260px}
+  .bi-canvas-box.tall{height:320px}
+  .bi-empty{padding:24px 10px;text-align:center;color:var(--text-muted);font-size:13px}
+  /* heatmap */
+  .hm{display:grid;gap:3px;font-size:10.5px}
+  .hm-cell{height:30px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--text-main);border:1px solid var(--border)}
+  .hm-row-lbl{display:flex;align-items:center;font-weight:700;color:var(--text-muted);font-size:11px;padding-right:6px;justify-content:flex-end}
+  .hm-col-lbl{font-size:9.5px;font-weight:700;color:var(--text-muted);text-align:center;text-transform:uppercase;letter-spacing:.2px;padding-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .hm-legend{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-muted);margin-top:10px}
+  .hm-legend .sw{width:16px;height:12px;border-radius:3px;border:1px solid var(--border)}
 </style>
 </head>
 <body>
@@ -150,6 +174,7 @@
     <div class="vtoggle" id="vtoggle">
       <button data-v="list" class="on">☰ List</button>
       <button data-v="cal">▦ Calendar</button>
+      <button data-v="bi">📊 Dashboard</button>
     </div>
     <button class="btn-csv" id="csvBtn" title="Download the rows shown below as a spreadsheet (CSV)">⬇ CSV</button>
     <button class="btn-pdf" id="pdfBtn" title="Download the rows shown below as a PDF">⬇ PDF</button>
@@ -478,6 +503,7 @@ function render(){
   document.getElementById('csvBtn').disabled = list.length===0;
   document.getElementById('pdfBtn').disabled = list.length===0;
   document.getElementById('count').textContent = list.length+(source==='cal'?' entr':' event')+(list.length===1?(source==='cal'?'y':''):(source==='cal'?'ies':'s'));
+  if(currentView==='bi'){ renderBI(list); return; }
   if(currentView==='cal'){ renderCalendar(list); return; }
   if(!list.length){ content.innerHTML='<div class="state">No matching upcoming events.</div>'; return; }
   // group by month
@@ -573,6 +599,249 @@ function renderCalendar(list){
   document.getElementById('calPrev').addEventListener('click',()=>{ calYM = m===0?{y:y-1,m:11}:{y,m:m-1}; renderCalendar(filteredList()); });
   document.getElementById('calNext').addEventListener('click',()=>{ calYM = m===11?{y:y+1,m:0}:{y,m:m+1}; renderCalendar(filteredList()); });
 }
+/* ============================ BI DASHBOARD ============================ */
+const PAL_LIGHT=['#2a78d6','#eb6834','#1baf7a','#eda100','#e87ba4','#008300','#4a3aa7','#e34948'];
+const PAL_DARK =['#3987e5','#d95926','#199e70','#c98500','#d55181','#008300','#9085e9','#e66767'];
+const STATUS_COLORS={ok:'#0ca30c',warn:'#fab219',danger:'#d03b3b',muted:'#898781'};
+const SEQ_BLUE=['#cde2fb','#9ec5f4','#6da7ec','#3987e5','#256abf','#184f95','#0d366b'];
+let biCharts=[];
+function isDark(){ const t=document.documentElement.getAttribute('data-theme'); if(t==='dark')return true; if(t==='light')return false; try{return matchMedia('(prefers-color-scheme: dark)').matches;}catch(e){return false;} }
+function biPalette(){ return isDark()?PAL_DARK:PAL_LIGHT; }
+function biInk(){ return isDark()?'#e0e0e0':'#333333'; }
+function biMuted(){ return isDark()?'#a0a0a0':'#6b7280'; }
+function biGrid(){ return isDark()?'#2c2c2a':'#e1e0d9'; }
+function biSurface(){ return isDark()?'#1e1e1e':'#ffffff'; }
+
+function destroyBiCharts(){ biCharts.forEach(c=>{ try{c.destroy();}catch(e){} }); biCharts=[]; }
+
+// ---- tally helpers ----
+function tally(arr){ const m=new Map(); arr.forEach(v=>{ if(v==null||v==='') return; m.set(v,(m.get(v)||0)+1); }); return m; }
+function topEntries(map,n){ return [...map.entries()].sort((a,b)=>b[1]-a[1]).slice(0,n); }
+function parseHour(t){ if(!t) return null; const s=String(t).trim().toLowerCase();
+  const m=s.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/); if(!m) return null;
+  let h=parseInt(m[1],10); const ap=m[3];
+  if(ap==='pm'&&h<12)h+=12; if(ap==='am'&&h===12)h=0;
+  return (h>=0&&h<=23)?h:null;
+}
+const ATT_BANDS=['0 - 25','26 - 50','51 - 100','101 - 200','201 - 499','500+'];
+const ATT_MID  ={'0 - 25':13,'26 - 50':38,'51 - 100':75,'101 - 200':150,'201 - 499':350,'500+':550};
+function normBand(v){ const s=String(v==null?'':v).replace(/\s+/g,' ').trim();
+  for(const b of ATT_BANDS){ if(s===b) return b; }
+  const n=s.replace(/[^\d]/g,''); // loose fallback by leading number
+  if(/500|1000/.test(s)) return '500+';
+  return s||''; }
+function svcBucket(v){ const s=String(v==null?'':v).toLowerCase().trim();
+  if(!s||s==='not requested') return ''; // not requested -> excluded
+  if(s.indexOf('complet')>-1) return 'Completed';
+  if(s.indexOf('process')>-1||s.indexOf('progress')>-1) return 'In Process';
+  if(s.indexOf('pend')>-1||s.indexOf('await')>-1||s.indexOf('review')>-1) return 'Pending';
+  if(s.indexOf('not start')>-1||s.indexOf('new')>-1||s.indexOf('submit')>-1) return 'Not Started';
+  return 'Other'; }
+
+// ---- Chart.js builders ----
+function baseOpts(extra){
+  const o={ responsive:true, maintainAspectRatio:false,
+    plugins:{ legend:{display:false}, datalabels:{display:false},
+      tooltip:{ backgroundColor:isDark()?'#2a2a2a':'#ffffff', titleColor:biInk(), bodyColor:biInk(), borderColor:biGrid(), borderWidth:1, padding:8 } },
+    layout:{padding:{top:4}} };
+  return Object.assign(o, extra||{});
+}
+function axisFont(){ return {color:biMuted(), font:{size:11, family:"'Open Sans',sans-serif"}}; }
+function makeBar(id,labels,data,opt){ // horizontal single-series bar with value labels
+  const el=document.getElementById(id); if(!el) return;
+  const col=(opt&&opt.color)||biPalette()[0];
+  const horiz=!!(opt&&opt.horizontal);
+  const ch=new Chart(el,{type:'bar',
+    data:{labels,datasets:[{data,backgroundColor:col,borderRadius:4,borderSkipped:false,maxBarThickness:34}]},
+    options:baseOpts({ indexAxis:horiz?'y':'x',
+      layout:{padding:{top:horiz?4:18, right:horiz?34:6}},
+      scales:{
+        x:{grid:{display:horiz?true:false,color:biGrid()},ticks:axisFont(),border:{color:biGrid()},grace:horiz?'8%':0,beginAtZero:true},
+        y:{grid:{display:horiz?false:true,color:biGrid()},ticks:axisFont(),border:{color:biGrid()},grace:horiz?0:'8%',beginAtZero:true}
+      },
+      plugins:{ legend:{display:false},
+        datalabels:{ display:true, clip:false, clamp:true, color:biInk(), anchor:'end', align:horiz?'right':'top', offset:2, font:{size:10,weight:'700',family:"'Open Sans',sans-serif"}, formatter:v=>v||'' } }
+    })});
+  biCharts.push(ch);
+}
+function makeDoughnut(id,labels,data,colors){
+  const el=document.getElementById(id); if(!el) return;
+  const ch=new Chart(el,{type:'doughnut',
+    data:{labels,datasets:[{data,backgroundColor:colors,borderColor:biSurface(),borderWidth:2}]},
+    options:baseOpts({ cutout:'58%',
+      plugins:{ legend:{display:true,position:'bottom',labels:{color:biInk(),font:{size:11,family:"'Open Sans',sans-serif"},boxWidth:12,padding:10}},
+        datalabels:{ display:true, color:'#fff', font:{size:12,weight:'700'}, formatter:(v,c)=>{ const t=c.dataset.data.reduce((a,b)=>a+b,0); return v&&t?Math.round(v/t*100)+'%':''; } } }
+    })});
+  biCharts.push(ch);
+}
+function makeStacked(id,labels,datasets,opt){
+  const el=document.getElementById(id); if(!el) return;
+  const ch=new Chart(el,{type:'bar',
+    data:{labels,datasets:datasets.map(d=>Object.assign({borderRadius:3,borderSkipped:false,maxBarThickness:34,borderColor:biSurface(),borderWidth:1},d))},
+    options:baseOpts({ indexAxis:(opt&&opt.horizontal)?'y':'x',
+      scales:{ x:{stacked:true,grid:{color:biGrid()},ticks:axisFont(),border:{color:biGrid()}},
+               y:{stacked:true,grid:{color:biGrid()},ticks:axisFont(),border:{color:biGrid()}} },
+      plugins:{ legend:{display:true,position:'bottom',labels:{color:biInk(),font:{size:11,family:"'Open Sans',sans-serif"},boxWidth:12,padding:10}},
+        datalabels:{ display:c=>c.dataset.data[c.dataIndex]>0, color:'#fff', font:{size:10,weight:'700'}, formatter:v=>v||'' } }
+    })});
+  biCharts.push(ch);
+}
+
+// ---- heatmap (day-of-week x time-of-day) ----
+const HM_COLS=['6–8a','8–10a','10–12p','12–2p','2–4p','4–6p','6–8p','8–10p','Other'];
+function hourCol(h){ if(h==null) return 8; if(h<6||h>=22) return 8; return Math.floor((h-6)/2); }
+function heatmapHTML(list){
+  const days=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const grid=days.map(()=>HM_COLS.map(()=>0));
+  let any=false, max=0;
+  list.forEach(e=>{ const dt=parseDate(e.date); if(!dt) return; const h=parseHour(e.startTime); const r=dt.getDay(), c=hourCol(h);
+    grid[r][c]++; any=true; if(grid[r][c]>max)max=grid[r][c]; });
+  if(!any) return '<div class="bi-empty">No dated entries with times in this selection.</div>';
+  function cellColor(v){ if(!v) return biSurface(); const ratio=v/max; const idx=Math.min(SEQ_BLUE.length-1, Math.max(0, Math.round(ratio*(SEQ_BLUE.length-1)))); return SEQ_BLUE[idx]; }
+  function cellInk(v){ if(!v) return biMuted(); const ratio=v/max; return ratio>0.5?'#fff':biInk(); }
+  const cols='60px repeat('+HM_COLS.length+',1fr)';
+  let html='<div class="hm" style="grid-template-columns:'+cols+'">';
+  html+='<div></div>'+HM_COLS.map(c=>`<div class="hm-col-lbl">${c}</div>`).join('');
+  days.forEach((d,r)=>{ html+=`<div class="hm-row-lbl">${d}</div>`;
+    HM_COLS.forEach((_,c)=>{ const v=grid[r][c]; html+=`<div class="hm-cell" style="background:${cellColor(v)};color:${cellInk(v)}" title="${d} ${HM_COLS[c]}: ${v}">${v||''}</div>`; });
+  });
+  html+='</div>';
+  html+=`<div class="hm-legend">Fewer <span class="sw" style="background:${SEQ_BLUE[0]}"></span><span class="sw" style="background:${SEQ_BLUE[2]}"></span><span class="sw" style="background:${SEQ_BLUE[4]}"></span><span class="sw" style="background:${SEQ_BLUE[6]}"></span> More</div>`;
+  return html;
+}
+
+function panel(title,sub,inner,span){ return `<div class="bi-panel${span?' span2':''}"><h3>${esc(title)}</h3>${sub?`<p class="p-sub">${esc(sub)}</p>`:''}${inner}</div>`; }
+function canvasBox(id,tall){ return `<div class="bi-canvas-box${tall?' tall':''}"><canvas id="${id}"></canvas></div>`; }
+function kpi(val,lbl,sub,cls){ return `<div class="kpi ${cls||''}"><div class="k-val">${esc(val)}</div><div class="k-lbl">${esc(lbl)}</div>${sub?`<div class="k-sub">${esc(sub)}</div>`:''}</div>`; }
+
+function renderBI(list){
+  destroyBiCharts();
+  if(!(window.Chart)){ content.innerHTML='<div class="state">Charts library is still loading — switch views and back in a moment.</div>'; return; }
+  if(window.ChartDataLabels && !Chart.__dlReg){ Chart.register(window.ChartDataLabels); Chart.defaults.plugins.datalabels.display=false; Chart.__dlReg=true; }
+  if(!list.length){ content.innerHTML='<div class="bi-empty">No data for this selection. Adjust the filters or time range above.</div>'; return; }
+  return source==='cal' ? renderBICalendar(list) : renderBILog(list);
+}
+
+/* ---------- Event Log dashboard ---------- */
+function renderBILog(list){
+  const n=list.length;
+  const sc={ok:0,warn:0,danger:0,muted:0}; list.forEach(e=>sc[statusClass(e.status)]++);
+  const apprPct=n?Math.round(sc.ok/n*100):0;
+  const collab=list.filter(e=>parseMulti(e.collaboratingBoards).length>0).length;
+  const collabPct=n?Math.round(collab/n*100):0;
+  const reach=list.reduce((s,e)=>{ const b=normBand(e.expectedAttendees); return s+(ATT_MID[b]||0); },0);
+  const virt=list.filter(e=>String(e.virtually).toLowerCase()==='yes').length;
+
+  const kpis=[
+    kpi(n,'Total Requests','in current selection',''),
+    kpi(apprPct+'%','Approved / Scheduled',sc.ok+' of '+n,'k-ok'),
+    kpi(sc.warn,'Pending','awaiting approval','k-warn'),
+    kpi(sc.danger,'Rejected / Cancelled','','k-danger'),
+    kpi(collabPct+'%','Cross-Board Collab',collab+' multi-board','k-collab'),
+    kpi('~'+reach.toLocaleString(),'Est. Attendee Reach','sum of band midpoints','k-info')
+  ].join('');
+
+  // status by board (stacked)
+  const boardMap=new Map();
+  list.forEach(e=>{ const b=e.board||'(none)'; if(!boardMap.has(b))boardMap.set(b,{ok:0,warn:0,danger:0,muted:0}); boardMap.get(b)[statusClass(e.status)]++; });
+  const boards=[...boardMap.entries()].sort((a,b)=>(b[1].ok+b[1].warn+b[1].danger+b[1].muted)-(a[1].ok+a[1].warn+a[1].danger+a[1].muted)).slice(0,10);
+  const bLabels=boards.map(x=>x[0]);
+  const bStacks=[
+    {label:'Approved/Scheduled',data:boards.map(x=>x[1].ok),backgroundColor:STATUS_COLORS.ok},
+    {label:'Pending',data:boards.map(x=>x[1].warn),backgroundColor:STATUS_COLORS.warn},
+    {label:'Rejected/Cancelled',data:boards.map(x=>x[1].danger),backgroundColor:STATUS_COLORS.danger}
+  ];
+
+  // area of focus
+  const aof=topEntries(tally(list.map(e=>dec(e.areaOfFocus))),10);
+  // venue demand
+  const locs=[]; list.forEach(e=>(e.locList||[]).forEach(l=>locs.push(l)));
+  const venue=topEntries(tally(locs),10);
+  // recurring
+  const rec=list.filter(e=>yn(e.recurring)==='Yes').length; const onetime=n-rec;
+  // target segments
+  const segs=[]; list.forEach(e=>parseMulti(e.targetSegments).forEach(s=>segs.push(s)));
+  const segTop=topEntries(tally(segs),10);
+  // attendee scale
+  const bandMap=new Map(); list.forEach(e=>{ const b=normBand(e.expectedAttendees); if(b) bandMap.set(b,(bandMap.get(b)||0)+1); });
+  const bandLabels=ATT_BANDS.filter(b=>bandMap.has(b)); const bandData=bandLabels.map(b=>bandMap.get(b));
+  // services fulfillment
+  const svcDefs=[['Communications','commsStatus'],['Audio Visual','avStatus'],['Ismaili Volunteers','ivcStatus']];
+  const svcStates=['Not Started','Pending','In Process','Completed'];
+  const svcGrid={}; svcDefs.forEach(([lbl])=>svcGrid[lbl]={});
+  list.forEach(e=>{ svcDefs.forEach(([lbl,f])=>{ const b=svcBucket(e[f]); if(svcStates.indexOf(b)>-1) svcGrid[lbl][b]=(svcGrid[lbl][b]||0)+1; }); });
+  const svcStacks=svcStates.map((st,i)=>({label:st,data:svcDefs.map(([lbl])=>svcGrid[lbl][st]||0),backgroundColor:[STATUS_COLORS.muted,STATUS_COLORS.warn,'#3987e5',STATUS_COLORS.ok][i]}));
+  const svcHasData=svcStacks.some(d=>d.data.some(v=>v>0));
+
+  let panels='';
+  panels+=panel('Status by Responsible Board','Top boards by volume · stacked by approval state',
+    bLabels.length?canvasBox('biBoard',true):'<div class="bi-empty">No board data.</div>', true);
+  panels+=panel('Events by Area of Focus','Top 10 programmatic areas', aof.length?canvasBox('biAof',true):'<div class="bi-empty">No area-of-focus data.</div>');
+  panels+=panel('Venue Demand','Top 10 locations by bookings', venue.length?canvasBox('biVenue',true):'<div class="bi-empty">No location data.</div>');
+  panels+=panel('Recurring vs One-time','Share of recurring programs', canvasBox('biRecur'));
+  panels+=panel('Event Scale','Requests by expected attendee band', bandLabels.length?canvasBox('biScale'):'<div class="bi-empty">No attendee-band data.</div>');
+  panels+=panel('Target Segment Reach','Top audience segments', segTop.length?canvasBox('biSeg',true):'<div class="bi-empty">No target-segment data.</div>');
+  panels+=panel('Support Service Fulfillment','Requested services by status',
+    svcHasData?canvasBox('biSvc'):'<div class="bi-empty">No requested services in this selection.</div>');
+  panels+=panel('Demand Heatmap','Bookings by day of week × time of day', heatmapHTML(list), true);
+
+  content.innerHTML='<div class="bi-kpis">'+kpis+'</div><div class="bi-grid">'+panels+'</div>';
+
+  if(bLabels.length) makeStacked('biBoard',bLabels,bStacks,{horizontal:true});
+  if(aof.length) makeBar('biAof',aof.map(x=>x[0]),aof.map(x=>x[1]),{horizontal:true,color:biPalette()[0]});
+  if(venue.length) makeBar('biVenue',venue.map(x=>x[0]),venue.map(x=>x[1]),{horizontal:true,color:biPalette()[2]});
+  makeDoughnut('biRecur',['Recurring','One-time'],[rec,onetime],[biPalette()[1],biPalette()[0]]);
+  if(bandLabels.length) makeBar('biScale',bandLabels,bandData,{horizontal:false,color:biPalette()[6]});
+  if(segTop.length) makeBar('biSeg',segTop.map(x=>x[0]),segTop.map(x=>x[1]),{horizontal:true,color:biPalette()[4]});
+  if(svcHasData) makeStacked('biSvc',svcDefs.map(x=>x[0]),svcStacks,{horizontal:false});
+}
+
+/* ---------- Calendar dashboard ---------- */
+function renderBICalendar(list){
+  const n=list.length;
+  const locsAll=[]; list.forEach(e=>{ if(e.location) locsAll.push(e.location); });
+  const catsAll=[]; list.forEach(e=>{ String(e.category||'').split(',').map(s=>s.trim()).filter(Boolean).forEach(c=>catsAll.push(c)); });
+  const durs=list.map(e=>Number(e.duration)).filter(v=>!isNaN(v)&&v>0);
+  const avgDur=durs.length?Math.round(durs.reduce((a,b)=>a+b,0)/durs.length):0;
+  // months
+  const monMap=new Map(); list.forEach(e=>{ const dt=parseDate(e.date); if(dt){ const k=dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0'); monMap.set(k,(monMap.get(k)||0)+1); } });
+  const monSorted=[...monMap.entries()].sort((a,b)=>a[0].localeCompare(b[0]));
+  const busiest=monSorted.length?monSorted.reduce((a,b)=>b[1]>a[1]?b:a):null;
+  const distinctLoc=new Set(locsAll).size, distinctCat=new Set(catsAll).size;
+
+  const kpis=[
+    kpi(n,'Total Entries','in current selection',''),
+    kpi(distinctLoc,'Distinct Locations','','k-info'),
+    kpi(distinctCat,'Categories','','k-collab'),
+    kpi(avgDur?avgDur+'m':PH,'Avg Duration',durs.length+' timed','k-ok'),
+    kpi(busiest?busiest[0]:PH,'Busiest Month',busiest?busiest[1]+' entries':'', 'k-warn')
+  ].join('');
+
+  const cats=topEntries(tally(catsAll),10);
+  const venue=topEntries(tally(locsAll),10);
+  const monLabels=monSorted.map(x=>{ const [y,m]=x[0].split('-'); return MON[+m-1]+" '"+y.slice(2); });
+  const monData=monSorted.map(x=>x[1]);
+  // duration buckets
+  const DB=[['≤30m',d=>d<=30],['31–60m',d=>d>30&&d<=60],['1–2h',d=>d>60&&d<=120],['2–4h',d=>d>120&&d<=240],['4h+',d=>d>240]];
+  const dbData=DB.map(([,f])=>durs.filter(f).length);
+  const dbLabels=DB.map(x=>x[0]);
+  const dbHas=dbData.some(v=>v>0);
+
+  let panels='';
+  panels+=panel('Entries by Category','Top 10 calendar categories', cats.length?canvasBox('biCat',true):'<div class="bi-empty">No category data.</div>');
+  panels+=panel('Venue Demand','Top 10 locations', venue.length?canvasBox('biVenueC',true):'<div class="bi-empty">No location data (calendar body may not include location).</div>');
+  panels+=panel('Entries by Month','Volume over the selected window', monLabels.length?canvasBox('biMonth'):'<div class="bi-empty">No dated entries.</div>', true);
+  panels+=panel('Duration Distribution','Length of calendar entries', dbHas?canvasBox('biDur'):'<div class="bi-empty">No timed entries.</div>');
+  panels+=panel('Demand Heatmap','Entries by day of week × time of day', heatmapHTML(list), true);
+
+  content.innerHTML='<div class="bi-kpis">'+kpis+'</div><div class="bi-grid">'+panels+'</div>';
+
+  if(cats.length) makeBar('biCat',cats.map(x=>x[0]),cats.map(x=>x[1]),{horizontal:true,color:biPalette()[0]});
+  if(venue.length) makeBar('biVenueC',venue.map(x=>x[0]),venue.map(x=>x[1]),{horizontal:true,color:biPalette()[2]});
+  if(monLabels.length) makeBar('biMonth',monLabels,monData,{horizontal:false,color:biPalette()[0]});
+  if(dbHas) makeBar('biDur',dbLabels,dbData,{horizontal:false,color:biPalette()[6]});
+}
+
 /* ============================ CSV EXPORT ============================ */
 function csvCell(v){
   const s=String(v==null?'':v);
