@@ -194,7 +194,18 @@ const REGION_CALENDAR_URL = "https://default98d027077ed646d2acf222ebdd2d5c.17.en
 const EVENT_PAGE = "index.html";
 const PH = "—";  // placeholder when a field can't be found (common for manual/recurring calendar entries)
 const REGIONS = ["All Canada","British Columbia","Edmonton","Toronto","Southwest Ontario","Northeast Ontario","All Ontario","Prairies","Quebec and Maritimes"];
-// timezone fallback per region (used when config has no CalendarTimeZone column)
+// Windows timezone names (as stored in config) -> IANA (what Intl needs)
+const WIN_TZ = {
+  "pacific standard time":"America/Vancouver",
+  "mountain standard time":"America/Edmonton",
+  "central standard time":"America/Winnipeg",
+  "eastern standard time":"America/Toronto",
+  "atlantic standard time":"America/Halifax",
+  "newfoundland standard time":"America/St_Johns",
+  "utc":"UTC","gmt standard time":"Europe/London"
+};
+function toIana(v){ if(!v) return ''; const s=String(v).trim(); if(s.indexOf('/')>-1) return s; return WIN_TZ[s.toLowerCase()]||''; }
+// timezone fallback per region (used when config Timezone is blank)
 const DEFAULT_TZ = {
   "British Columbia":"America/Vancouver",
   "Edmonton":"America/Edmonton", "Prairies":"America/Edmonton",
@@ -343,7 +354,7 @@ async function loadCalendar(region,range){
     const r=await fetch(url);
     if(!r.ok) throw new Error('HTTP '+r.status);
     const data=await r.json();
-    const tz=data.timezone || DEFAULT_TZ[region] || 'UTC';
+    const tz=toIana(data.timezone) || DEFAULT_TZ[region] || 'UTC';
     if(data.error){ content.innerHTML='<div class="state">'+esc(data.error)+'</div>'; document.getElementById('toolbar').hidden=false; document.getElementById('filters').hidden=false; applySourceUI(); return; }
     ALL=(data.events||[]).map((e,i)=>{
       const loc = extractBodyField(e.body,'Event Location') || (e.location||'');
