@@ -194,6 +194,14 @@ const REGION_CALENDAR_URL = "https://default98d027077ed646d2acf222ebdd2d5c.17.en
 const EVENT_PAGE = "index.html";
 const PH = "—";  // placeholder when a field can't be found (common for manual/recurring calendar entries)
 const REGIONS = ["All Canada","British Columbia","Edmonton","Toronto","Southwest Ontario","Northeast Ontario","All Ontario","Prairies","Quebec and Maritimes"];
+// timezone fallback per region (used when config has no CalendarTimeZone column)
+const DEFAULT_TZ = {
+  "British Columbia":"America/Vancouver",
+  "Edmonton":"America/Edmonton", "Prairies":"America/Edmonton",
+  "Toronto":"America/Toronto", "Southwest Ontario":"America/Toronto",
+  "Northeast Ontario":"America/Toronto", "All Ontario":"America/Toronto",
+  "Quebec and Maritimes":"America/Toronto", "All Canada":"America/Toronto"
+};
 const FETCH_LIMIT = 500;    // page size hint sent to the flow (it auto-pages beyond this)
 const PAGE_CEILING = 5000;  // flow's safety cap; only past this do we ask to narrow the window
 const RANGES = {
@@ -335,7 +343,7 @@ async function loadCalendar(region,range){
     const r=await fetch(url);
     if(!r.ok) throw new Error('HTTP '+r.status);
     const data=await r.json();
-    const tz=data.timezone||'UTC';
+    const tz=data.timezone || DEFAULT_TZ[region] || 'UTC';
     if(data.error){ content.innerHTML='<div class="state">'+esc(data.error)+'</div>'; document.getElementById('toolbar').hidden=false; document.getElementById('filters').hidden=false; applySourceUI(); return; }
     ALL=(data.events||[]).map((e,i)=>{
       const loc = extractBodyField(e.body,'Event Location') || (e.location||'');
