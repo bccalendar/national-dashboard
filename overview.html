@@ -48,6 +48,9 @@
   .ms-opt{display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:6px;font-size:13px;cursor:pointer;color:var(--text-main)}
   .ms-opt:hover{background:rgba(153,0,0,.08)}
   .ms-opt input{width:15px;height:15px;accent-color:var(--primary);flex:none}
+  .ms-search{position:sticky;top:0;background:var(--bg-card);padding:2px 2px 6px}
+  .ms-search input{width:100%;padding:7px 9px;border:1px solid var(--border);border-radius:6px;background:var(--bg-card);color:var(--text-main);font-size:13px;font-family:inherit}
+  .ms-empty{padding:7px 9px;font-size:12.5px;color:var(--text-muted)}
   input[type=date]{width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg-card);color:var(--text-main);font-size:13px;font-family:inherit}
   .btn-clear{align-self:flex-end;background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:8px;padding:9px 14px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit}
   .btn-clear:hover{border-color:var(--primary);color:var(--primary)}
@@ -165,6 +168,11 @@
     <div class="fld"><label for="fromDate">From date</label><input type="date" id="fromDate"></div>
     <div class="fld"><label for="toDate">To date</label><input type="date" id="toDate"></div>
     <div class="fld"><label for="boardSel">Board</label><select id="boardSel"><option value="">All boards</option></select></div>
+    <div class="fld" id="svcFld">
+      <label>Services needed</label>
+      <div class="ms-box ph" id="svcBox" tabindex="0" role="button" aria-haspopup="true">All services</div>
+      <div class="ms-panel" id="svcPanel" hidden></div>
+    </div>
     <div class="fld" id="locFld">
       <label>Location</label>
       <div class="ms-box ph" id="locBox" tabindex="0" role="button" aria-haspopup="true">All locations</div>
@@ -301,8 +309,13 @@ async function loadLog(region,range){
     const data=await r.json();
     ALL=(data.events||[]).map(e=>{
       const locs=parseMulti(e.location);
+      const req=v=>{ const s=String(v==null?'':v).toLowerCase(); return s && s!=='not requested'; };
+      const services=[];
+      if(req(e.commsStatus)) services.push('Communications');
+      if(req(e.avStatus)) services.push('Audio Visual');
+      if(req(e.ivcStatus)) services.push('Ismaili Volunteers');
       return Object.assign({}, e, {
-        title:dec(e.title), location:locs.join(', '), locList:locs,
+        title:dec(e.title), location:locs.join(', '), locList:locs, services:services,
         board:dec(e.board), status:e.status||'—', _cal:false
       });
     });
@@ -351,23 +364,41 @@ function renderChips(){
 }
 
 let selectedLocs = new Set();
+let selectedSvcs = new Set();
+const SVC_ORDER=['Communications','Audio Visual','Ismaili Volunteers'];
+function optRow(v){ return `<label class="ms-opt"><input type="checkbox" value="${esc(v)}"><span>${esc(v)}</span></label>`; }
 function populateFilters(){
   // reset filter controls on each region load (dates are managed by the Time-range window)
-  selectedLocs = new Set();
+  selectedLocs = new Set(); selectedSvcs = new Set();
   const boards=[...new Set(ALL.map(e=>e.board).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
   // distinct INDIVIDUAL locations across all events (split out combined values)
   const locSet=new Set(); ALL.forEach(e=>(e.locList||[]).forEach(l=>{ if(l) locSet.add(l); }));
   const locs=[...locSet].sort((a,b)=>a.localeCompare(b));
+  // services present in the data, in preferred order
+  const svcSet=new Set(); ALL.forEach(e=>(e.services||[]).forEach(s=>svcSet.add(s)));
+  const svcs=SVC_ORDER.filter(s=>svcSet.has(s));
   document.getElementById('boardSel').innerHTML='<option value="">All boards</option>'+boards.map(b=>`<option value="${esc(b)}">${esc(b)}</option>`).join('');
-  document.getElementById('locPanel').innerHTML = locs.length
-    ? locs.map(l=>`<label class="ms-opt"><input type="checkbox" value="${esc(l)}"><span>${esc(l)}</span></label>`).join('')
-    : '<div class="ms-opt" style="cursor:default;color:var(--text-muted)">No locations</div>';
-  updateLocBox();
-  // wire checkbox changes
+
+  // ---- Location panel (searchable) ----
+  document.getElementById('locPanel').innerHTML =
+    '<div class="ms-search"><input type="text" id="locSearch" placeholder="Type to filter…" autocomplete="off"></div>'
+    + '<div id="locOpts">' + (locs.length ? locs.map(optRow).join('') : '<div class="ms-empty">No locations</div>') + '</div>';
   document.querySelectorAll('#locPanel input[type=checkbox]').forEach(cb=> cb.addEventListener('change',()=>{
     if(cb.checked) selectedLocs.add(cb.value); else selectedLocs.delete(cb.value);
     updateLocBox(); calYM=null; render();
   }));
+  const ls=document.getElementById('locSearch');
+  if(ls) ls.addEventListener('input',()=>{ const t=ls.value.toLowerCase();
+    document.querySelectorAll('#locOpts .ms-opt').forEach(o=>{ o.style.display = o.textContent.toLowerCase().indexOf(t)>-1 ? '' : 'none'; }); });
+  updateLocBox();
+
+  // ---- Services panel ----
+  document.getElementById('svcPanel').innerHTML = svcs.length ? svcs.map(optRow).join('') : '<div class="ms-empty">No services</div>';
+  document.querySelectorAll('#svcPanel input[type=checkbox]').forEach(cb=> cb.addEventListener('change',()=>{
+    if(cb.checked) selectedSvcs.add(cb.value); else selectedSvcs.delete(cb.value);
+    updateSvcBox(); calYM=null; render();
+  }));
+  updateSvcBox();
 }
 function updateLocBox(){
   const box=document.getElementById('locBox'); const n=selectedLocs.size;
@@ -375,6 +406,13 @@ function updateLocBox(){
   else if(n===1){ box.textContent=[...selectedLocs][0]; box.classList.remove('ph'); }
   else { box.textContent=n+' locations selected'; box.classList.remove('ph'); }
 }
+function updateSvcBox(){
+  const box=document.getElementById('svcBox'); const n=selectedSvcs.size;
+  if(n===0){ box.textContent='All services'; box.classList.add('ph'); }
+  else if(n===1){ box.textContent=[...selectedSvcs][0]; box.classList.remove('ph'); }
+  else { box.textContent=n+' services selected'; box.classList.remove('ph'); }
+}
+function isAllJK(l){ return /all.*jamatkhanas/i.test(String(l||'')); }
 
 // current filtered list — shared by render() and CSV export
 function filteredList(){
@@ -382,11 +420,17 @@ function filteredList(){
   // the controls below filter within the fetched window.
   const term=(document.getElementById('search').value||'').toLowerCase();
   const board=document.getElementById('boardSel').value;
+  // when a specific jamatkhana (not Other/External) is chosen, "All Jamatkhanas" events apply too
+  const realJKselected=[...selectedLocs].some(l=> !isAllJK(l) && !/^other$/i.test(l) && !/external/i.test(l));
   return ALL.filter(e=>{
     if(activeStatus!=='All' && statusClass(e.status)!==activeStatus) return false;
     if(term){ const hay=(e.title+' '+e.board+' '+e.location).toLowerCase(); if(hay.indexOf(term)===-1) return false; }
     if(board && e.board!==board) return false;
-    if(selectedLocs.size){ const has=(e.locList||[]).some(l=>selectedLocs.has(l)); if(!has) return false; }
+    if(selectedSvcs.size){ const hasS=(e.services||[]).some(s=>selectedSvcs.has(s)); if(!hasS) return false; }
+    if(selectedLocs.size){
+      const has=(e.locList||[]).some(l=> selectedLocs.has(l) || (realJKselected && isAllJK(l)));
+      if(!has) return false;
+    }
     return true;
   });
 }
@@ -401,6 +445,7 @@ function applySourceUI(){
   // status chips + board filter don't apply to calendar entries
   document.getElementById('statusChips').style.display = cal ? 'none' : '';
   const boardFld = document.getElementById('boardSel').closest('.fld'); if(boardFld) boardFld.style.display = cal ? 'none' : '';
+  const svcFld = document.getElementById('svcFld'); if(svcFld) svcFld.style.display = cal ? 'none' : '';
   document.querySelector('.sub').textContent = cal ? 'Calendar entries for the selected window' : 'Upcoming events and their approval status';
   document.querySelectorAll('#srcToggle button').forEach(b=> b.classList.toggle('on', b.getAttribute('data-s')===source));
 }
@@ -606,10 +651,16 @@ document.getElementById('rangeSel').addEventListener('change', ()=>{ if(sel.valu
 // location multi-select open/close
 const locBox=document.getElementById('locBox'), locPanel=document.getElementById('locPanel');
 function toggleLocPanel(open){ locPanel.hidden = (open===undefined) ? !locPanel.hidden : !open; }
-locBox.addEventListener('click', e=>{ e.stopPropagation(); toggleLocPanel(); });
+locBox.addEventListener('click', e=>{ e.stopPropagation(); toggleSvcPanel(false); toggleLocPanel(); const ls=document.getElementById('locSearch'); if(ls && !locPanel.hidden) setTimeout(()=>ls.focus(),0); });
 locBox.addEventListener('keydown', e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); toggleLocPanel(); } });
 locPanel.addEventListener('click', e=>e.stopPropagation());
-document.addEventListener('click', ()=> toggleLocPanel(false));
+// services multi-select open/close
+const svcBox=document.getElementById('svcBox'), svcPanel=document.getElementById('svcPanel');
+function toggleSvcPanel(open){ svcPanel.hidden = (open===undefined) ? !svcPanel.hidden : !open; }
+svcBox.addEventListener('click', e=>{ e.stopPropagation(); toggleLocPanel(false); toggleSvcPanel(); });
+svcBox.addEventListener('keydown', e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); toggleSvcPanel(); } });
+svcPanel.addEventListener('click', e=>e.stopPropagation());
+document.addEventListener('click', ()=>{ toggleLocPanel(false); toggleSvcPanel(false); });
 document.querySelectorAll('#vtoggle button').forEach(b=> b.addEventListener('click',()=>{
   currentView=b.getAttribute('data-v');
   document.querySelectorAll('#vtoggle button').forEach(x=>x.classList.toggle('on', x===b));
@@ -630,9 +681,10 @@ document.getElementById('clearBtn').addEventListener('click', ()=>{
   document.getElementById('search').value='';
   document.getElementById('boardSel').value='';
   document.getElementById('rangeSel').value='3m';
-  selectedLocs.clear();
-  document.querySelectorAll('#locPanel input[type=checkbox]').forEach(cb=>cb.checked=false);
-  updateLocBox();
+  selectedLocs.clear(); selectedSvcs.clear();
+  document.querySelectorAll('#locPanel input[type=checkbox], #svcPanel input[type=checkbox]').forEach(cb=>cb.checked=false);
+  const ls=document.getElementById('locSearch'); if(ls){ ls.value=''; document.querySelectorAll('#locOpts .ms-opt').forEach(o=>o.style.display=''); }
+  updateLocBox(); updateSvcBox();
   activeStatus='All'; calYM=null;
   if(sel.value) load(sel.value); else { renderChips(); render(); }
 });
