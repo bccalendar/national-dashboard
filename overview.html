@@ -8,6 +8,8 @@
 <link rel="apple-touch-icon" href="favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <style>
   :root{
     --bg-page:#f9f9f9; --bg-card:#ffffff; --bg-header:#ffffff;
@@ -52,6 +54,10 @@
   .btn-csv{background:var(--primary);color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;cursor:pointer;font-family:inherit;white-space:nowrap}
   .btn-csv:hover{filter:brightness(1.08)}
   .btn-csv:disabled{opacity:.5;cursor:not-allowed}
+  .btn-pdf{background:var(--info);color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;cursor:pointer;font-family:inherit;white-space:nowrap}
+  .btn-pdf:hover{filter:brightness(1.08)}
+  .btn-pdf:disabled{opacity:.5;cursor:not-allowed}
+  .cat-tag{font-size:10px;font-weight:700;color:#fff;background:var(--muted);border-radius:4px;padding:2px 6px;text-transform:uppercase;margin-left:4px}
   .chips{display:flex;flex-wrap:wrap;gap:6px}
   .chip{border:1px solid var(--border);background:var(--bg-card);color:var(--text-main);border-radius:20px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer}
   .chip.on{background:var(--primary);color:#fff;border-color:var(--primary)}
@@ -125,6 +131,13 @@
     <label for="regionSel">Region</label>
     <select id="regionSel"></select>
   </div>
+  <div class="region-pick" style="min-width:0">
+    <label>Data source</label>
+    <div class="vtoggle" id="srcToggle">
+      <button data-s="log" class="on" title="Approved event requests from the event log">🗂 Event Log</button>
+      <button data-s="cal" title="Entries from the region's Outlook calendar">📆 Calendar</button>
+    </div>
+  </div>
 </header>
 
 <div class="wrap">
@@ -135,7 +148,8 @@
       <button data-v="list" class="on">☰ List</button>
       <button data-v="cal">▦ Calendar</button>
     </div>
-    <button class="btn-csv" id="csvBtn" title="Download the events shown below as a spreadsheet (CSV)">⬇ Download CSV</button>
+    <button class="btn-csv" id="csvBtn" title="Download the rows shown below as a spreadsheet (CSV)">⬇ CSV</button>
+    <button class="btn-pdf" id="pdfBtn" title="Download the rows shown below as a PDF">⬇ PDF</button>
     <div class="count" id="count"></div>
   </div>
   <div class="filters" id="filters" hidden>
@@ -166,8 +180,11 @@
 /* ============================ CONFIG ============================ */
 // Paste the GET URL of the "NationalRegionEvents" flow here after importing the solution:
 const REGION_EVENTS_URL = "https://default98d027077ed646d2acf222ebdd2d5c.17.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/19/workflows/4c79c444dc5c4cba973042e78e2402a8/triggers/manual/paths/invoke?api-version=1&sp=/triggers/manual/run&sv=1.0&sig=UdQ9vAkBUiR4e0pf8ngfI9PeRNZjzmnJFTBpUE6xiKg";
+// Paste the GET URL of the "NationalRegionCalendar" flow here after importing v3.9.16:
+const REGION_CALENDAR_URL = "";
 // Per-event dashboard page (same repo):
 const EVENT_PAGE = "index.html";
+const PH = "—";  // placeholder when a field can't be found (common for manual/recurring calendar entries)
 const REGIONS = ["All Canada","British Columbia","Edmonton","Toronto","Southwest Ontario","Northeast Ontario","All Ontario","Prairies","Quebec and Maritimes"];
 const FETCH_LIMIT = 500;    // page size hint sent to the flow (it auto-pages beyond this)
 const PAGE_CEILING = 5000;  // flow's safety cap; only past this do we ask to narrow the window
@@ -187,6 +204,7 @@ let activeStatus = "All";
 let currentView = "list";   // "list" | "cal"
 let calYM = null;           // {y, m} month shown in calendar view
 let truncated = false;      // true if fetch hit FETCH_LIMIT
+let source = (function(){ try{return localStorage.getItem('ov_source')||'log'}catch(e){return 'log'} })(); // 'log' | 'cal'
 const sel = document.getElementById('regionSel');
 const content = document.getElementById('content');
 
@@ -228,12 +246,50 @@ function computeRange(){
   other.setMonth(other.getMonth()-r.months); return {from:fmt(other), to:fmt(today)};
 }
 
+/* ---- calendar-mode helpers ---- */
+// convert a Graph UTC dateTime string to the region's local date/time
+function toLocal(dt, tz){
+  if(!dt) return {dateISO:'', timeStr:''};
+  const iso = /[zZ]|[+\-]\d\d:?\d\d$/.test(dt) ? dt : dt+'Z';
+  const d = new Date(iso);
+  if(isNaN(d.getTime())) return {dateISO:'', timeStr:''};
+  try{
+    const dateISO = new Intl.DateTimeFormat('en-CA',{timeZone:tz,year:'numeric',month:'2-digit',day:'2-digit'}).format(d);
+    const timeStr = new Intl.DateTimeFormat('en-US',{timeZone:tz,hour:'numeric',minute:'2-digit',hour12:true}).format(d);
+    return {dateISO, timeStr, dateObj:d};
+  }catch(e){
+    return {dateISO:d.toISOString().slice(0,10), timeStr:d.toISOString().slice(11,16)};
+  }
+}
+function durationMin(start,end){
+  if(!start||!end) return '';
+  const a=new Date(/[zZ]$/.test(start)?start:start+'Z'), b=new Date(/[zZ]$/.test(end)?end:end+'Z');
+  if(isNaN(a)||isNaN(b)) return '';
+  const m=Math.round((b-a)/60000); return m>=0? m : '';
+}
+// replicate the Power BI body-parse: value in the first <td> after a label
+function extractBodyField(html,label){
+  if(!html) return '';
+  const parts0=String(html).split(label); if(parts0.length<2) return '';
+  const after=parts0.slice(1).join(label);
+  const start=after.indexOf('<td'); if(start<0) return '';
+  const gt=after.indexOf('>',start); if(gt<0) return '';
+  const end=after.indexOf('</td>',gt); if(end<0) return '';
+  const inner=after.substring(gt+1,end);
+  const bits=inner.split(/[<>]/).map(x=>x.replace(/&nbsp;/g,' ').trim())
+    .filter(x=> x && x.indexOf('=')===-1 && !x.startsWith('/'));
+  return bits.join(' ').replace(/\s+/g,' ').trim();
+}
+
 async function load(region){
   const range=computeRange();
-  // reflect the active window into the date inputs
   document.getElementById('fromDate').value=range.from;
   document.getElementById('toDate').value=range.to;
-  content.innerHTML='<div class="state"><div class="spinner"></div><div style="margin-top:10px;">Loading events for '+esc(region)+'…</div></div>';
+  content.innerHTML='<div class="state"><div class="spinner"></div><div style="margin-top:10px;">Loading '+(source==='cal'?'calendar':'events')+' for '+esc(region)+'…</div></div>';
+  return source==='cal' ? loadCalendar(region,range) : loadLog(region,range);
+}
+
+async function loadLog(region,range){
   if(REGION_EVENTS_URL.indexOf('http')!==0){ content.innerHTML='<div class="state"><b>Setup needed</b><br>Set <code>REGION_EVENTS_URL</code> in overview.html to the GET URL of the NationalRegionEvents flow.</div>'; return; }
   try{
     const sep=REGION_EVENTS_URL.indexOf('?')>-1?'&':'?';
@@ -247,14 +303,43 @@ async function load(region){
       const locs=parseMulti(e.location);
       return Object.assign({}, e, {
         title:dec(e.title), location:locs.join(', '), locList:locs,
-        board:dec(e.board), status:e.status||'—'
+        board:dec(e.board), status:e.status||'—', _cal:false
       });
     });
     truncated = ALL.length >= (data.ceiling || PAGE_CEILING);
     activeStatus="All"; calYM=null;
-    populateFilters();
-    renderChips(); render();
+    populateFilters(); renderChips(); render();
   }catch(err){ content.innerHTML='<div class="state">Could not load events: '+esc(err.message)+'<br><span style="font-size:12px">Check the region link and that the NationalRegionEvents flow is on.</span></div>'; document.getElementById('note').hidden=true; }
+}
+
+async function loadCalendar(region,range){
+  if(REGION_CALENDAR_URL.indexOf('http')!==0){ content.innerHTML='<div class="state"><b>Calendar source not set up yet</b><br>Import v3.9.16, then paste the <code>NationalRegionCalendar</code> flow URL into <code>REGION_CALENDAR_URL</code> in overview.html, and set each region\'s <code>CalendarId</code> / <code>CalendarTimeZone</code> in the National Config list.</div>'; document.getElementById('toolbar').hidden=false; document.getElementById('filters').hidden=false; applySourceUI(); return; }
+  try{
+    const sep=REGION_CALENDAR_URL.indexOf('?')>-1?'&':'?';
+    let url=REGION_CALENDAR_URL+sep+'region='+encodeURIComponent(region);
+    if(range.from) url+='&from='+encodeURIComponent(range.from);
+    if(range.to)   url+='&to='+encodeURIComponent(range.to);
+    const r=await fetch(url);
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const data=await r.json();
+    const tz=data.timezone||'UTC';
+    if(data.error){ content.innerHTML='<div class="state">'+esc(data.error)+'</div>'; document.getElementById('toolbar').hidden=false; document.getElementById('filters').hidden=false; applySourceUI(); return; }
+    ALL=(data.events||[]).map((e,i)=>{
+      const loc = extractBodyField(e.body,'Event Location') || (e.location||'');
+      const room = extractBodyField(e.body,'Room Booking');
+      const s=toLocal(e.start,tz), en=toLocal(e.end,tz);
+      const cats = Array.isArray(e.categories)? e.categories.join(', ') : (e.categories||'');
+      return {
+        id:'', _cal:true, title:e.subject||'(no subject)',
+        date:s.dateISO, startTime:s.timeStr, endTime:en.timeStr,
+        location:loc, locList: loc?[loc]:[], room:room, category:cats,
+        duration:durationMin(e.start,e.end),
+        board:'', status:'', submissionType:'', virtually:'', recurring:''
+      };
+    });
+    truncated=false; activeStatus="All"; calYM=null;
+    populateFilters(); renderChips(); render();
+  }catch(err){ content.innerHTML='<div class="state">Could not load calendar: '+esc(err.message)+'<br><span style="font-size:12px">Check the calendar link, the region\'s CalendarId in config, and that the NationalRegionCalendar flow is on.</span></div>'; document.getElementById('note').hidden=true; }
 }
 
 function renderChips(){
@@ -311,13 +396,24 @@ function showNote(){
   else n.hidden=true;
 }
 
+function applySourceUI(){
+  const cal = source==='cal';
+  // status chips + board filter don't apply to calendar entries
+  document.getElementById('statusChips').style.display = cal ? 'none' : '';
+  const boardFld = document.getElementById('boardSel').closest('.fld'); if(boardFld) boardFld.style.display = cal ? 'none' : '';
+  document.querySelector('.sub').textContent = cal ? 'Calendar entries for the selected window' : 'Upcoming events and their approval status';
+  document.querySelectorAll('#srcToggle button').forEach(b=> b.classList.toggle('on', b.getAttribute('data-s')===source));
+}
+
 function render(){
   document.getElementById('toolbar').hidden=false;
   document.getElementById('filters').hidden=false;
+  applySourceUI();
   showNote();
   let list=filteredList();
   document.getElementById('csvBtn').disabled = list.length===0;
-  document.getElementById('count').textContent = list.length+' event'+(list.length===1?'':'s');
+  document.getElementById('pdfBtn').disabled = list.length===0;
+  document.getElementById('count').textContent = list.length+(source==='cal'?' entr':' event')+(list.length===1?(source==='cal'?'y':''):(source==='cal'?'ies':'s'));
   if(currentView==='cal'){ renderCalendar(list); return; }
   if(!list.length){ content.innerHTML='<div class="state">No matching upcoming events.</div>'; return; }
   // group by month
@@ -330,24 +426,34 @@ function render(){
     const badgeCls={ok:'b-ok',warn:'b-warn',danger:'b-danger',muted:'b-muted'}[sc];
     const dd = dt? dt.getDate() : '—'; const mm = dt? MON[dt.getMonth()] : ''; const yy = dt? dt.getFullYear() : '';
     const timeStr = [e.startTime,e.endTime].filter(Boolean).join(' – ');
-    const meta=[]; if(timeStr) meta.push('🕐 '+esc(timeStr));
-    if(String(e.virtually).toLowerCase()==='yes') meta.push('💻 Virtual'); else if(e.location) meta.push('📍 '+esc(e.location));
-    if(e.board) meta.push('💼 '+esc(e.board));
-    const editTag = String(e.submissionType||'').toLowerCase()==='edited' ? ' <span class="edit-tag">Edited</span>' : '';
-    const isRecur = yn(e.recurring)==='Yes';
+    const meta=[]; meta.push('🕐 '+esc(timeStr||PH));
+    if(e._cal){
+      meta.push('📍 '+esc(e.location||PH));
+      meta.push('🚪 '+esc(e.room||PH));
+      if(e.duration!=='' && e.duration!=null) meta.push('⏱ '+esc(e.duration)+' min');
+    } else {
+      if(String(e.virtually).toLowerCase()==='yes') meta.push('💻 Virtual'); else if(e.location) meta.push('📍 '+esc(e.location));
+      if(e.board) meta.push('💼 '+esc(e.board));
+    }
+    const editTag = (!e._cal && String(e.submissionType||'').toLowerCase()==='edited') ? ' <span class="edit-tag">Edited</span>' : '';
+    const isRecur = !e._cal && yn(e.recurring)==='Yes';
     const recurTag = isRecur ? ' <span class="recur-tag">🔁 Recurring</span>' : '';
     if(isRecur && e.repeatOccurrences) meta.push('🔁 '+esc(e.repeatOccurrences));
-    const href = EVENT_PAGE+'?eventid='+encodeURIComponent(e.id)+'&r='+encodeURIComponent(sel.value);
+    const titleLead = e._cal ? '' : ('#'+esc(e.id)+' · ');
+    let right;
+    if(e._cal){
+      right = `<span class="badge b-muted">${esc(e.category||'Calendar')}</span>`;
+    } else {
+      const href = EVENT_PAGE+'?eventid='+encodeURIComponent(e.id)+'&r='+encodeURIComponent(sel.value);
+      right = `<span class="badge ${badgeCls}">${esc(e.status)}</span><a class="view" href="${href}">View</a>`;
+    }
     html+=`<div class="ev s-${sc}">
       <div class="ev-date"><div class="d">${dd}</div><div class="m">${mm}</div><div class="yr">${yy}</div></div>
       <div class="ev-main">
-        <p class="ev-title">#${esc(e.id)} · ${esc(e.title)}${recurTag}${editTag}</p>
+        <p class="ev-title">${titleLead}${esc(e.title)}${recurTag}${editTag}</p>
         <div class="ev-meta">${meta.join('<span>·</span>')}</div>
       </div>
-      <div class="ev-right">
-        <span class="badge ${badgeCls}">${esc(e.status)}</span>
-        <a class="view" href="${href}">View</a>
-      </div>
+      <div class="ev-right">${right}</div>
     </div>`;
   });
   content.innerHTML=html;
@@ -379,10 +485,15 @@ function renderCalendar(list){
     let inner=`<div class="cal-dnum">${d}</div>`;
     evs.slice(0,3).forEach(e=>{
       const sc=statusClass(e.status);
-      const isRecur = yn(e.recurring)==='Yes';
-      const href=EVENT_PAGE+'?eventid='+encodeURIComponent(e.id)+'&r='+encodeURIComponent(sel.value);
-      const tip='#'+e.id+' · '+e.title+(isRecur?' (recurring)':'')+' — '+e.status;
-      inner+=`<a class="cal-ev s-${sc}" href="${href}" title="${esc(tip)}"><span class="ce-t">${isRecur?'🔁 ':''}${esc(e.title)}</span></a>`;
+      if(e._cal){
+        const tip=e.title+' — '+(e.startTime||PH)+(e.location?(' · '+e.location):'');
+        inner+=`<span class="cal-ev s-muted" title="${esc(tip)}"><span class="ce-t">${esc(e.title)}</span></span>`;
+      } else {
+        const isRecur = yn(e.recurring)==='Yes';
+        const href=EVENT_PAGE+'?eventid='+encodeURIComponent(e.id)+'&r='+encodeURIComponent(sel.value);
+        const tip='#'+e.id+' · '+e.title+(isRecur?' (recurring)':'')+' — '+e.status;
+        inner+=`<a class="cal-ev s-${sc}" href="${href}" title="${esc(tip)}"><span class="ce-t">${isRecur?'🔁 ':''}${esc(e.title)}</span></a>`;
+      }
     });
     if(evs.length>3) inner+=`<div class="cal-more">+${evs.length-3} more</div>`;
     cells+=`<div class="cal-cell${isToday?' today':''}">${inner}</div>`;
@@ -432,20 +543,55 @@ const CSV_COLS=[
   ['Requester Email', e=>e.requesterEmail],
   ['Requester Phone', e=>e.requesterPhone]
 ];
+// calendar-source columns (mirror the Power BI query, with placeholders)
+const CAL_COLS=[
+  ['Subject', e=>e.title||PH],
+  ['Category', e=>e.category||PH],
+  ['Event Location', e=>e.location||PH],
+  ['Room Booking', e=>e.room||PH],
+  ['Date', e=>e.date||PH],
+  ['Start Time', e=>e.startTime||PH],
+  ['End Time', e=>e.endTime||PH],
+  ['Duration (Min)', e=> (e.duration===''||e.duration==null)?PH:e.duration]
+];
+// trimmed columns for the (page-width-limited) PDF in event-log mode
+const PDF_COLS_LOG=[
+  ['ID', e=>e.id], ['Title', e=>e.title], ['Date', e=>(e.date||'').slice(0,10)],
+  ['Start', e=>e.startTime||PH], ['End', e=>e.endTime||PH], ['Location', e=>e.location||PH],
+  ['Board', e=>e.board||PH], ['Status', e=>e.status||PH], ['Recurring', e=>yn(e.recurring)||PH]
+];
+function activeCSVCols(){ return source==='cal' ? CAL_COLS : CSV_COLS; }
+function activePDFCols(){ return source==='cal' ? CAL_COLS : PDF_COLS_LOG; }
+function exportName(ext){ return (sel.value||'events').replace(/[^\w]+/g,'_')+'_'+(source==='cal'?'calendar':'events')+'_'+new Date().toISOString().slice(0,10)+'.'+ext; }
+
 function downloadCSV(){
   const list=filteredList();
   if(!list.length) return;
-  const cols=CSV_COLS.map(c=>c[0]);
-  const rows=list.map(e=> CSV_COLS.map(c=>csvCell(c[1](e))).join(','));
+  const COLS=activeCSVCols();
+  const cols=COLS.map(c=>c[0]);
+  const rows=list.map(e=> COLS.map(c=>csvCell(c[1](e))).join(','));
   const csv='﻿'+cols.map(csvCell).join(',')+'\n'+rows.join('\n');
-  const region=(sel.value||'events').replace(/[^\w]+/g,'_');
-  const stamp=new Date().toISOString().slice(0,10);
   const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
   const a=document.createElement('a');
   a.href=URL.createObjectURL(blob);
-  a.download=region+'_events_'+stamp+'.csv';
+  a.download=exportName('csv');
   document.body.appendChild(a); a.click();
   setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 0);
+}
+function downloadPDF(){
+  const list=filteredList(); if(!list.length) return;
+  if(!(window.jspdf && window.jspdf.jsPDF)){ alert('PDF library is still loading or was blocked — please retry in a moment.'); return; }
+  const {jsPDF}=window.jspdf;
+  const COLS=activePDFCols();
+  const doc=new jsPDF({orientation: COLS.length>6?'l':'p', unit:'pt', format:'a4'});
+  const head=[COLS.map(c=>c[0])];
+  const body=list.map(e=> COLS.map(c=>{ const v=c[1](e); return (v===''||v==null)?PH:String(v); }));
+  const title=(sel.value||'')+' — '+(source==='cal'?'Calendar':'Event Log');
+  const sub=(document.getElementById('fromDate').value||'')+'  to  '+(document.getElementById('toDate').value||'')+'    ('+list.length+' rows)';
+  doc.setFontSize(14); doc.text(title, 40, 40);
+  doc.setFontSize(10); doc.setTextColor(120); doc.text(sub, 40, 58);
+  doc.autoTable({ head, body, startY:72, styles:{fontSize:8,cellPadding:3,overflow:'linebreak'}, headStyles:{fillColor:[153,0,0]}, margin:{left:40,right:40} });
+  doc.save(exportName('pdf'));
 }
 
 document.getElementById('search').addEventListener('input', render);
@@ -471,6 +617,15 @@ document.querySelectorAll('#vtoggle button').forEach(b=> b.addEventListener('cli
   render();
 }));
 document.getElementById('csvBtn').addEventListener('click', downloadCSV);
+document.getElementById('pdfBtn').addEventListener('click', downloadPDF);
+// data-source toggle -> re-fetch from the matching flow
+document.querySelectorAll('#srcToggle button').forEach(b=> b.addEventListener('click',()=>{
+  const s=b.getAttribute('data-s'); if(s===source) return;
+  source=s; try{localStorage.setItem('ov_source',s)}catch(e){}
+  document.querySelectorAll('#srcToggle button').forEach(x=>x.classList.toggle('on', x===b));
+  activeStatus='All'; calYM=null;
+  if(sel.value) load(sel.value);
+}));
 document.getElementById('clearBtn').addEventListener('click', ()=>{
   document.getElementById('search').value='';
   document.getElementById('boardSel').value='';
