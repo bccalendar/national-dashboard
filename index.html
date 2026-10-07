@@ -444,13 +444,16 @@
         today.setHours(0,0,0,0);
         const isPastDate = eventData['Event Start Date'] !== '' && eventDate < today;
 
-        const inProgress = ["new request", "primary approval requested", "final approval requested"].includes(statusLower);
-        const restricted = ["cancelled", "auto-cancelled", "auto cancelled", "rejected", "primary approval rejected", "final approval rejected"].some(s => statusLower.includes(s));
+        const inProgress = statusLower === "new request" || statusLower.includes("approval requested");   // any region's own stage name, e.g. "Board Chair Approval Requested"
+        // A rejected request can always be edited and re-submitted (it goes through approval again); cancelled / past / in-approval ones stay locked.
+        const rejected = statusLower.includes("rejected");
+        const restricted = ["cancelled", "auto-cancelled", "auto cancelled"].some(s => statusLower.includes(s));
         
         const isLocked = inProgress || restricted || isPastDate;
+        const canResubmit = rejected && !isLocked;
 
         let statusColor = 'var(--accent-secondary)';
-        if (restricted) statusColor = 'var(--status-error)';
+        if (restricted || rejected) statusColor = 'var(--status-error)';
         else if (inProgress || statusLower.includes('pending')) statusColor = 'var(--status-pending)';
         else if (statusLower === 'scheduled' || statusLower.includes('approved')) statusColor = 'var(--status-success)';
 
@@ -459,14 +462,29 @@
         const btnEdit = document.getElementById('btnEdit');
         const btnCancel = document.getElementById('btnCancelEvent');
 
-        badge.innerHTML = `${isLocked ? ICONS.LOCK : ICONS.CHECK} ${statusRaw.toUpperCase()}`;
+        badge.innerHTML = `${isLocked ? ICONS.LOCK : (canResubmit ? ICONS.EDIT : ICONS.CHECK)} ${statusRaw.toUpperCase()}`;
         badge.style.backgroundColor = statusColor;
         badge.dataset.color = statusColor; // Store for dark mode toggle
         document.getElementById('mainStickyHeader').style.borderBottomColor = statusColor;
         banner.style.backgroundColor = statusColor;
 
-        if (isLocked) {
-            banner.innerHTML = `${ICONS.LOCK} UPDATES RESTRICTED: CHANGES LOCKED FOR APPROVAL, PAST, CANCELLED AND REJECTED EVENTS`;
+        if (canResubmit) {
+            banner.innerHTML = `${ICONS.EDIT} REQUEST REJECTED: EDIT AND RESUBMIT IT FOR APPROVAL`;
+            btnEdit.disabled = false;
+            btnEdit.innerHTML = `${ICONS.EDIT} Edit & Resubmit`;
+            btnCancel.disabled = true;
+            btnCancel.innerHTML = `${ICONS.LOCK} Cancel Locked`;
+            btnCancel.style.backgroundColor = '#ccc';
+            btnCancel.style.borderColor = '#ccc';
+            btnEdit.onclick = () => openModal(
+                "Edit &amp; Resubmit",
+                "Your changes will be saved on this request and it will go through the <strong>approval workflow again</strong>. If it was previously approved, its calendar entry has already been removed.",
+                "Proceed to Edit",
+                "btn-primary",
+                () => triggerFlowAction('event', 'edit')
+            );
+        } else if (isLocked) {
+            banner.innerHTML = `${ICONS.LOCK} UPDATES RESTRICTED: CHANGES LOCKED FOR APPROVAL, PAST AND CANCELLED EVENTS`;
             btnEdit.disabled = btnCancel.disabled = true;
             btnEdit.innerHTML = `${ICONS.LOCK} Edit Locked`; 
             btnCancel.innerHTML = `${ICONS.LOCK} Cancel Locked`;
