@@ -210,6 +210,7 @@
                     <h2 class="section-title" onclick="toggleCard(this)"><span>🛠️</span> Services Required</h2>
                     <div class="card-content" style="transition: max-height 0.4s ease-out; overflow: hidden;">
                         <div id="servicesRequiredGrid" class="service-grid"></div>
+                        <p style="margin:12px 0 0; font-size:11px; color:var(--text-muted);">ℹ️ Arts &amp; Culture, Legal and Transportation cannot be added or removed here. To change them, the requester can edit the event request form.</p>
                     </div>
                 </div>
                 <div class="card">
@@ -561,7 +562,7 @@
         });
         Object.keys(serviceStatuses).forEach(function(name){
             var st = String(serviceStatuses[name].status||'').toLowerCase();
-            if (st && st!=='not requested' && st!=='not supported' && st.indexOf('cancel')===-1) selectedServicesList.push(name);
+            if (st && st!=='not requested' && st.indexOf('cancel')===-1) selectedServicesList.push(name);
         });
         document.getElementById('scopeDetails').innerHTML = 
             createDetailRow('Responsible Board', decodeAndTrim(eventData['Board Portfolio']), null, '💼', true) +
