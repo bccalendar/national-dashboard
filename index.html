@@ -541,7 +541,7 @@
         document.getElementById('overviewDetails').innerHTML =
             createDetailRow('Event ID', eventData['Event ID'], null, '🆔', true) +
             createDetailRow('Submission Type', decodeAndTrim(eventData['Submission Type']) || 'New', null, decodeAndTrim(eventData['Submission Type'])==='Edited' ? '✎' : '🆕', true) +
-            createDetailRow('Event Type', decodeAndTrim(eventData['Event Type']), null, '🏷️', true) +
+            createDetailRow('Booking Type', decodeAndTrim(eventData['Event Type']), null, '🏷️', true) +
             createDetailRow('Schedule', `${formatDate(eventData['Event Start Date'])} | ${decodeAndTrim(eventData['Start Time'])} - ${decodeAndTrim(eventData['End Time'])}`, null, ICONS.CAL, true) +
             createDetailRow('Recurring', (function(){ var r=decodeAndTrim(eventData['Recurring Event']); if(!r||r==='None') return 'None'; var o=decodeAndTrim(eventData['Repeat Occurrences']); return r + (o ? ' ('+o+' occurrences)' : ''); })(), null, '🔁', true) +
             createDetailRow('Virtually', decodeAndTrim(eventData['Virtually']), null, ICONS.VIRTUAL, true) +
